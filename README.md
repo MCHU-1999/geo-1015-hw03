@@ -1,6 +1,22 @@
 # geo-1015-hw03
 A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing
 
+### Git Submodule
+make it as a git submodule if you already have another github repo storing your other assignments.
+
+Add (download) submodule
+```
+git submodule add <repository-url> <local-folder-name-you-like>
+```
+Initialization
+```
+git submodule update --init --recursive
+```
+Verify submodule status
+```
+git submodule status
+```
+
 ### Folder Structure
 ```
 ├── report
