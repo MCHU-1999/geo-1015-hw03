@@ -1,2 +1,5 @@
 .DS_Store
-/input
+bk_subset1.laz
+bk.laz
+params.json
+params2.json
