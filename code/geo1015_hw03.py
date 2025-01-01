@@ -43,7 +43,7 @@ def main():
         write_ply(pts, "out_regiongrowing.ply")
     if "HoughTransform" in jparams:
         print("==> HoughTransform")
-        pts = houghtransform.detect(lazfile, jparams["RegionGrowing"], RERUN_VIZ)
+        pts = houghtransform.detect(lazfile, jparams["HoughTransform"], RERUN_VIZ)
         write_ply(pts, "out_houghtransform.ply")
 
 
