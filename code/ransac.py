@@ -3,7 +3,7 @@ import time
 import numpy as np
 import rerun as rr
 import scipy.spatial
-
+import ransac_simple
 
 def detect(lazfile, params, viz=False):
     """
@@ -21,15 +21,18 @@ def detect(lazfile, params, viz=False):
       - a NumPy array Nx4; each point has x-y-z-segmentid
     """
     # -- generate random segments and assign them to the points
-    segment_ids = np.random.randint(low=0, high=10, size=lazfile.header.point_count)
+    # segment_ids = np.random.randint(low=0, high=10, size=lazfile.header.point_count)
+    segment_ids = np.zeros(lazfile.header.point_count, dtype=int)
     pts = np.vstack((lazfile.x, lazfile.y, lazfile.z, segment_ids)).transpose()
+
+    pts, segment_count = ransac_simple.extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
 
     # -- spatially index all the points with a kd-tree
     # -- https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.html
     kdtree = scipy.spatial.KDTree(pts[:, :3])
     re = kdtree.query_ball_point(pts[1, :3], 2.0)
     neighbours = kdtree.data[re]
-    print("Neigbours of point #1:\n", neighbours)
+    # print("Neigbours of point #1:\n", neighbours)
 
     if viz:
         # -- init rerun viewer
@@ -37,7 +40,7 @@ def detect(lazfile, params, viz=False):
         # -- log all the points
         rr.log("allpts", rr.Points3D(pts[:, :3], colors=[78, 205, 189], radii=0.1))
         # -- log each class one-by-one
-        for i in range(10):
+        for i in range(segment_count):
             subset = pts[pts[:, 3] == float(i)][:, :3]
             rr.log(
                 "subset_{}".format(i),
