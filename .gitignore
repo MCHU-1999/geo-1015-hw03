@@ -1,5 +1,4 @@
+__pycache__
 .DS_Store
-bk_subset1.laz
-bk.laz
-params.json
-params2.json
+/data/*.json
+/data/*.laz
