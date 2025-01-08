@@ -242,7 +242,7 @@ def detect(lazfile, params, viz=False):
     # pts, scores, planes = ransac_simple.extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
     # pts, scores, planes = ransac_simple.extract_planes(pts, 500, 1000, 0.1)
     # pts, scores, planes = extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
-    pts, scores, planes = extract_planes(pts, 500, 1000, 0.1)
+    pts, scores, planes = extract_planes(pts, 50, 1000, 0.1)
     pts = post_process(pts, scores, planes, 0.1)
 
     id_count = len(scores) + 1
