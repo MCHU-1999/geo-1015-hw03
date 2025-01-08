@@ -159,7 +159,7 @@ def post_process(pts: np.ndarray, scores: np.ndarray, planes: np.ndarray, epsilo
         pts_copy = pts.copy()
         radius = epsilon * 5
         for index in collison:
-            # pts[index, 3] = 0
+            pts[index, 3] = 0
             n_indices = np.array(kdtree.query_ball_point(pts[index, :3], radius))
             indices = n_indices[pts_copy[n_indices, 3] > 0]
 
