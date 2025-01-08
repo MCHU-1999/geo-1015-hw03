@@ -29,14 +29,15 @@ def ransac(pts: np.ndarray, mask=None, iterations=1000, epsilon=0.1):
 
     best_score = 0
     best_inliers = np.array([])
+    best_plane = (0.0, 0.0, 0.0, 0.0)
     rng = np.random.default_rng()
     available = np.where(mask==1)[0]
     prob_mask = mask / len(available)
 
     for _ in range(iterations):
 
-        sampled_indexes = rng.choice(len(pts), size=3, replace=False, p=prob_mask)
-        pt1, pt2, pt3 = pts[sampled_indexes]
+        sampled_indices = rng.choice(len(pts), size=3, replace=False, p=prob_mask)
+        pt1, pt2, pt3 = pts[sampled_indices]
         normal = normal_from_3pt(pt1, pt2, pt3)
         
         # Formula: ax + by + cz + d = 0, calculate d using point p1
@@ -50,8 +51,9 @@ def ransac(pts: np.ndarray, mask=None, iterations=1000, epsilon=0.1):
         if score > best_score:
             best_score = score
             best_inliers = inliers
+            best_plane = (normal[0], normal[1], normal[2], d)
     
-    return best_score, best_inliers
+    return best_score, best_inliers, best_plane
 
 def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1):
     """
@@ -65,30 +67,34 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
         pts: a NumPy array Nx4; each point has x-y-z-segmentid
         segment_count: number of segments
     """
-    segment_count = 1
+    planes = []
+    scores = []
+    id_count = 1
     invalid_count = 0
     pts3d = pts[:, :3].copy()
     mask = np.ones(len(pts), dtype=int)
 
     while True:
-        best_score, best_inliers = ransac(pts3d, mask, iterations, epsilon)
+        score, inliers, plane = ransac(pts3d, mask, iterations, epsilon)
 
         if invalid_count > 20:
             break
 
-        if best_score < min_score:
+        if score < min_score:
             invalid_count += 1
             continue
         else:
             invalid_count = 0
 
-        pts[best_inliers, 3] = segment_count
-        mask[best_inliers] = 0
+        pts[inliers, 3] = id_count
+        mask[inliers] = 0
+        planes.append(plane)
+        scores.append(score)
 
-        print("\nsegment_id:", segment_count)
-        print("best_score:", best_score)
+        print("\nid:", id_count)
+        print("best_score:", score)
         print("pts available:", len(np.where(mask==1)[0]))
 
-        segment_count += 1
+        id_count += 1
 
-    return pts, segment_count
+    return pts, np.array(scores), np.array(planes)
