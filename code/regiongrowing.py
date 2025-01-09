@@ -73,6 +73,8 @@ def detect(lazfile, params, viz=False):
         current_segment_id = 1
         processed = np.zeros(n, dtype=bool)  # Track processed points
 
+        max_region_size = 1000  # Maximum number of points in a region
+
         for i in range(n):
             if processed[i]:
                 continue  # Skip already processed points
@@ -87,6 +89,10 @@ def detect(lazfile, params, viz=False):
                 segment_ids[p] = current_segment_id
                 processed[p] = True  # Mark the point as processed
 
+                # Early termination: Stop if the region grows too large
+                if len(R) >= max_region_size:
+                    break
+                    
                 # Find neighbors of p
                 neighbors = tree.query(points[p], k=k + 1)[1][1:]  # Exclude p itself
 
