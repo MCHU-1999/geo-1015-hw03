@@ -21,7 +21,7 @@ def normal_from_3pt(pt1, pt2, pt3):
     return normal / normal_norm
 
 
-def ransac(kdtree: scipy.spatial.KDTree, mask=None, iterations=1000, epsilon=0.1):
+def ransac(kdtree: scipy.spatial.KDTree, mask=None, iterations=2000, epsilon=0.1):
     """
     RANSAC algorithm for plane detection in point cloud data.
     
@@ -323,7 +323,7 @@ def detect(lazfile, params, viz=False):
                     level=rr.TextLogLevel.TRACE,
                 ),
             )
-            # time.sleep(0.5)
+            time.sleep(0.1)
 
     return pts
 
