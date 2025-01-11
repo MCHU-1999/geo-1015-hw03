@@ -1,0 +1,8 @@
+{
+  "input_file": "bk.laz",
+  "RANSAC": {
+    "k": 15,
+    "min_score": 15,
+    "epsilon": 0.3
+  }
+}

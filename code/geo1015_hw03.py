@@ -9,6 +9,7 @@ from pathlib import Path
 import houghtransform
 import laspy
 import ransac
+import RANSAC_DBSCAN
 import regiongrowing
 
 RERUN_VIZ = False
@@ -35,7 +36,8 @@ def main():
 
     if "RANSAC" in jparams:
         print("==> RANSAC")
-        pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
+        # pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
+        pts = RANSAC_DBSCAN.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
         write_ply(pts, "out_ransac.ply")
     if "RegionGrowing" in jparams:
         print("==> RegionGrowing")
