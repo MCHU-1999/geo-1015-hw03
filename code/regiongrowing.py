@@ -211,7 +211,3 @@ def detect(lazfile, params, viz=False):
 
     return result
 
-# segment_ids = np.random.randint(low=0, high=10, size=lazfile.header.point_count)
-    # pts = np.vstack((lazfile.x, lazfile.y, lazfile.z, segment_ids)).transpose()
-    # print(pts)
-    # return pts
