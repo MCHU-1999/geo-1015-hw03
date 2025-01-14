@@ -4,6 +4,8 @@ import numpy as np
 import rerun as rr
 import scipy.spatial
 import ransac_simple
+from sklearn.cluster import DBSCAN
+import dbscan
 
 
 def normal_from_3pt(pt1, pt2, pt3):
@@ -23,9 +25,9 @@ def ransac(kdtree: scipy.spatial.KDTree, mask=None, iterations=1000, epsilon=0.1
     RANSAC algorithm for plane detection in point cloud data.
     
     Parameters:
-    kdtree: scipy.spatial.KDTree built with a (N, 3) array containing [x, y, z] coordinates
-    iterations: number of iterations for RANSAC
-    epsilon: maximum distance from point to plane to be considered an inlier
+        kdtree: scipy.spatial.KDTree built with a (N, 3) array containing [x, y, z] coordinates
+        iterations: number of iterations for RANSAC
+        epsilon: maximum distance from point to plane to be considered an inlier
     
     Returns:
         best_score: inliner points amount in this run
@@ -45,7 +47,6 @@ def ransac(kdtree: scipy.spatial.KDTree, mask=None, iterations=1000, epsilon=0.1
     for _ in range(iterations):
         # 1st random choice
         sampled_index = rng.choice(len(kdtree.data), size=1, replace=False, p=prob_mask)[0]
-        # distances, re = kdtree.query(kdtree.data[sampled_index], k=30)
         re = kdtree.query_ball_point(kdtree.data[sampled_index], 5.0)
 
         mask_2 = mask[re]
@@ -84,14 +85,14 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
     """
     Extract multiple planes from point cloud using RANSAC
     
-    Parameters:
+    Parameters: 
         pts: numpy array of shape (N, 4) containing [x, y, z, id] coordinates
         min_score: minimum number of inliers required for a plane to be considered valid
     
-    Returns:
-        pts: a NumPy array Nx4; each point has x-y-z-segmentid.
-        scores: a NumPy array of inline scores except uncatagorized (id = 0).
-        planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0. 
+    Returns: 
+        pts: a NumPy array Nx4; each point has x-y-z-segmentid
+        scores: a NumPy array of inline scores except uncatagorized (id = 0)
+        planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0
     """
 
     planes = []
@@ -120,20 +121,21 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
         
         print("\nid:", id_count)
         print("score:", score)
-        print("pts available:", len(np.where(mask==1)[0]))
+        print(f"plane: {plane[0]}x + {plane[1]}y + {plane[2]}z + {plane[3]:.2f} = 0")
+        print("remaining pts:", len(np.where(mask==1)[0]))
 
         id_count += 1
 
+    del kdtree
     return pts, np.array(scores), np.array(planes)
 
-def post_process(pts: np.ndarray, scores: np.ndarray, planes: np.ndarray, epsilon=0.1):
+def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1):
     """
-    Extract multiple planes from point cloud using RANSAC
+    Reclassify points based on their neighboring data; this process corrects points that were initially misclassified.
     
     Parameters:
         pts: numpy array of shape (N, 4) containing [x, y, z, id] coordinates
-        scores: 
-        planes: 
+        planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0
         epsilon: maximum distance from point to plane to be considered an inlier
     
     Returns:
@@ -172,57 +174,48 @@ def post_process(pts: np.ndarray, scores: np.ndarray, planes: np.ndarray, epsilo
             id = uniq.values[max_index]
             pts[index, 3] = id
 
+    del kdtree
     return pts
 
-
-def merge_planes(pts: np.ndarray, planes: np.ndarray, angle_threshold=2, distance_threshold=0.1):
+def dbscan_refinement(pts: np.ndarray, eps, min_samples):
     """
-    Merge similar planes after RANSAC.
+    Refine RANSAC-segmented planes using DBSCAN to split into separate clusters
 
     Parameters:
-        pts (numpy.ndarray): Array of shape (N, 4) containing [x, y, z, id] coordinates.
-        planes (list of tuples): List of plane equations (A, B, C, D).
-        angle_threshold (float): Threshold for the angle difference between planes.
-        distance_threshold (float): Threshold for the distance difference between planes.
+        pts: numpy array of shape (N, 4) containing [x, y, z, segment_id] coordinates
+        eps: DBSCAN's maximum distance between samples for them to be considered in the same cluster
+        min_samples: Minimum number of samples in a cluster
 
     Returns:
-        pts (numpy.ndarray): Array of shape (N, 4) containing [x, y, z, new_id] coordinates.
+        pts: Refined point cloud with updated segment IDs
     """
-    radians_threshold = math.radians(angle_threshold)
-    planes_all = np.vstack(([1, 1, 1, np.inf], planes))
-    num_planes = len(planes)
-    merge_map = np.arange(num_planes)
+    pts_copy = pts.copy()
+    pts_copy[:, 3] = 0
+    segment_ids = np.unique(pts[:, 3]).astype(int)
+    id_counter = 1
 
-    # Check pairwise similarity between planes
-    for i in range(num_planes):
-        if i == 0:
+    for segment_id in segment_ids:
+        if segment_id == 0:  # Skip unsegmented points
             continue
-        for j in range(i + 1, num_planes):
-            # Get plane normals and constants
-            a1, b1, c1, d1 = planes_all[i]
-            a2, b2, c2, d2 = planes_all[j]
-            n1 = np.array([a1, b1, c1])
-            n2 = np.array([a2, b2, c2])
 
-            # Check angle between normals
-            angle_cos = np.dot(n1, n2)
-            angle = math.acos(angle_cos)
-            if angle > radians_threshold:
-                continue  # Normals are not parallel
+        # Extract indices of points belonging to the current segment
+        segment_indices = np.where(pts[:, 3] == segment_id)[0]
+        segment_points = pts[segment_indices, :3]  # Only use x, y, z for clustering
 
-            # Check distance difference
-            if abs(d1 - d2) > distance_threshold:
-                continue  # Planes are too far apart
+        # Apply DBSCAN clustering to the points in the current segment
+        labels = dbscan.cluster_by_distance(segment_points, eps, min_samples)
 
-            # Merge plane j into plane i
-            merge_map[j] = merge_map[i]
-            print(f"merged plane {j} into plane {i}")
+        # Update the segment IDs for each cluster
+        for cluster_label in np.unique(labels):
+            if cluster_label == -1:  # Noise points, skip them
+                continue
 
-    # Create new ids based on merged planes
-    for old_id, new_id in enumerate(merge_map):
-        pts[pts[:, 3] == old_id, 3] = new_id
+            # Get indices of points in the current cluster
+            cluster_indices = segment_indices[labels == cluster_label]
+            pts_copy[cluster_indices, 3] = id_counter
+            id_counter += 1
 
-    return pts
+    return pts_copy
 
 def detect(lazfile, params, viz=False):
     """
@@ -242,10 +235,15 @@ def detect(lazfile, params, viz=False):
     # pts, scores, planes = ransac_simple.extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
     # pts, scores, planes = ransac_simple.extract_planes(pts, 500, 1000, 0.1)
     # pts, scores, planes = extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
-    pts, scores, planes = extract_planes(pts, 50, 1000, 0.1)
-    pts = post_process(pts, scores, planes, 0.1)
+    pts, scores, planes = extract_planes(pts, 300, 1000, 0.10)
+    pts = post_process(pts, planes, 0.1)
+    # id_count = len(planes) + 1
 
-    id_count = len(scores) + 1
+    # DBSCAN refinement
+    dbscan_eps = 4.0
+    dbscan_min_samples = 10
+    pts = dbscan_refinement(pts, dbscan_eps, dbscan_min_samples)
+    id_count = int(np.max(pts[:, 3])) + 1
 
     if viz:
         # -- init rerun viewer
