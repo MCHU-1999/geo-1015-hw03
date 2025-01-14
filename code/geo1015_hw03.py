@@ -36,8 +36,8 @@ def main():
 
     if "RANSAC" in jparams:
         print("==> RANSAC")
-        # pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
-        pts = RANSAC_DBSCAN.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
+        pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
+        # pts = RANSAC_DBSCAN.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
         write_ply(pts, "out_ransac.ply")
     if "RegionGrowing" in jparams:
         print("==> RegionGrowing")
