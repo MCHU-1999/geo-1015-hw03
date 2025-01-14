@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.spatial import KDTree
 from scipy.linalg import svd
-import rerun
+import rerun as rr
+import time
+
 
 def detect(lazfile, params, viz=False):
     """
@@ -91,7 +93,7 @@ def detect(lazfile, params, viz=False):
 
         return normals, planarity
 
-    def select_seeds(planarity, min_seeds=200):
+    def select_seeds(planarity, min_seeds=1000):
         """
         Select seed points based on planarity score.
         Higher planarity means better plane fit.
@@ -109,46 +111,52 @@ def detect(lazfile, params, viz=False):
         """
         max_angle_rad = np.deg2rad(max_angle)
         n = len(points)
-        segment_ids = np.zeros(n, dtype=int)
-        current_segment_id = 1
         processed = np.zeros(n, dtype=bool)
-        min_region_size = k * 2
+        regions = []  # LR in pseudocode
+        min_region_size = 10  # Minimum points for a valid region
 
-        for seed in seed_points:
+        for seed in seed_points:  # for each s in LS do
             if processed[seed]:
                 continue
 
-            # Start new region
-            S = [seed]
-            R = []
-            region_normal = normals[seed]
+            S = {seed}  # S ← {s}
+            R = set()  # R ← ∅
+            region_normals = []
 
-            while S:
-                current_point = S.pop(0)
-                if processed[current_point]:
-                    continue
+            while S:  # while S is not empty do
+                p = S.pop()  # p ← pop(S)
 
-                # Check normal similarity
-                angle = np.arccos(np.clip(np.abs(np.dot(region_normal, normals[current_point])), -1.0, 1.0))
+                # Find neighbours(p)
+                _, neighbors = tree.query(points[p], k=k + 1)
 
-                if angle < max_angle_rad:
-                    # Add point to region
-                    R.append(current_point)
-                    processed[current_point] = True
+                # foreach candidate point c ∈ neighbours(p) do
+                for c in neighbors[1:]:  # Skip first neighbor (point itself)
+                    # Check if point fits regardless of processed state
+                    if R:
+                        region_normal = np.mean(region_normals, axis=0)
+                        region_normal = region_normal / np.linalg.norm(region_normal)
+                    else:
+                        region_normal = normals[seed]
 
-                    # Find neighbors
-                    _, neighbors = tree.query(points[current_point], k=k + 1)
+                    # Check if point fits with region
+                    angle = np.arccos(np.clip(np.abs(np.dot(region_normal, normals[c])), -1.0, 1.0))
 
-                    # Add unprocessed neighbors to queue
-                    for neighbor in neighbors[1:]:
-                        if not processed[neighbor]:
-                            S.append(neighbor)
+                    # Only add to region if unprocessed AND fits
+                    if angle < max_angle_rad and not processed[c]:
+                        S.add(c)  # add c to S
+                        R.add(c)  # add c to R
+                        processed[c] = True
+                        region_normals.append(normals[c])
 
-            # # Only keep sufficiently large regions
-            # if len(R) >= min_region_size:
-            segment_ids[R] = current_segment_id
-            current_segment_id += 1
-            print(f"Found region {current_segment_id - 1} with {len(R)} points")
+            # append R to LR if it meets minimum size
+            if len(R) >= min_region_size:
+                regions.append(list(R))
+                print(f"Found region {len(regions)} with {len(R)} points")
+
+        # Convert to segment IDs format
+        segment_ids = np.zeros(n, dtype=int)
+        for i, region in enumerate(regions, start=1):
+            segment_ids[list(region)] = i
 
         return segment_ids
 
@@ -202,6 +210,7 @@ def detect(lazfile, params, viz=False):
             time.sleep(0.5)
 
     return result
+
 # segment_ids = np.random.randint(low=0, high=10, size=lazfile.header.point_count)
     # pts = np.vstack((lazfile.x, lazfile.y, lazfile.z, segment_ids)).transpose()
     # print(pts)
