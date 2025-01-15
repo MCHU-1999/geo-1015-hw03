@@ -216,10 +216,6 @@ def detect(lazfile, params, viz=False):
 
 
 def detect_with_chunks(lazfile, params, viz=False):
-    generate_pointcloud_chunks(lazfile, 20)
-
-    sys.exit()
-
     """
     !!! TO BE COMPLETED !!!
     !!! You are free to subdivide the functionality of this function into several functions !!!
@@ -290,6 +286,8 @@ def detect_with_chunks(lazfile, params, viz=False):
 
     points = np.vstack((lazfile.x, lazfile.y, lazfile.z)).transpose()
 
+    plane_ids = np.arange(len(plane_vectors))
+
     rng = np.random.default_rng()
 
     rng.shuffle(points)
@@ -331,6 +329,7 @@ def detect_with_chunks(lazfile, params, viz=False):
 
             plane_vectors = np.delete(plane_vectors, mask, axis=0)
             plane_unit_vectors = np.delete(plane_unit_vectors, mask, axis=0)
+            plane_ids = np.delete(plane_ids, mask, axis=0)
 
             print("Accumulator size pre-removal: ", len(accumulator))
 
@@ -346,15 +345,23 @@ def detect_with_chunks(lazfile, params, viz=False):
 
     print("voting time: ", voting_end_time - voting_start_time)
 
-    points_with_ids = [None for _ in range(len(points))]
-
-    accumulator.sort(key=len, reverse=True)
-
     #######################################################################
 
     print("Started Consolidating")
 
+    points_with_ids = [None for _ in range(len(points))]
+
+    accumulator_with_ids = list(zip(accumulator, plane_ids))
+
+    print(accumulator_with_ids[0])
+
+    sys.exit()
+
+    accumulator.sort(key=len, reverse=True)
+
     plane_counter = 0
+
+    accumulator = [set(x) for x in accumulator]
 
     while plane_counter < len(accumulator):
         print(len(accumulator))
