@@ -12,10 +12,6 @@ def perpendicular_distance(normal, vertex, sample):
 
 
 def detect(lazfile, params, viz=False):
-    generate_pointcloud_chunks(lazfile, 20)
-
-    sys.exit()
-
     """
     !!! TO BE COMPLETED !!!
     !!! You are free to subdivide the functionality of this function into several functions !!!
