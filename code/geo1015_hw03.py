@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import houghtransform
+import houghtransform_boundingbox
 import laspy
 import ransac
 import RANSAC_DBSCAN
@@ -19,7 +20,8 @@ RERUN_VIZ = True
 def main():
     # -- get the path to the params.json (assuming the directory as in the git repository)
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    param_path = dir_path + "/../data/params.json"
+    # param_path = dir_path + "/../data/params.json"
+    param_path = dir_path + "/../data/params_houghtransform.json"
     # -- or you can supply the params.json as the first argument to this program
     if len(sys.argv) == 2:
         param_path = sys.argv[1]
@@ -45,7 +47,8 @@ def main():
         write_ply(pts, "out_regiongrowing.ply")
     if "HoughTransform" in jparams:
         print("==> HoughTransform")
-        pts = houghtransform.detect(lazfile, jparams["HoughTransform"], RERUN_VIZ)
+        # pts = houghtransform.detect(lazfile, jparams["HoughTransform"], RERUN_VIZ)
+        pts = houghtransform_boundingbox.detect(lazfile, jparams["HoughTransform"], RERUN_VIZ)
         write_ply(pts, "out_houghtransform.ply")
 
 
