@@ -49,8 +49,9 @@ def visualize_point_cloud(pts, algo, params: dict):
     ax.set_zlabel('Z')
     # ax.set_title(f"3D Point Cloud from {algo}")
 
-    # Adjust margins for better visualization
-    plt.subplots_adjust(left=0.0, right=0.8, top=1.0, bottom=0.0)
+    # Adjust for better visualization
+    ax.view_init(elev=15, azim=15)
+    plt.subplots_adjust(left=0.0, right=0.9, top=1.0, bottom=0.0)
 
     # Add notes beside the plot
     param_str = [f"{key}: {value}" for key, value in params.items()]
