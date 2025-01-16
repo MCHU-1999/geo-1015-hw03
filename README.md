@@ -1,21 +1,11 @@
 # geo-1015-hw03
-A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing
+A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing.
 
-### Git Submodule
-make it as a git submodule if you already have another github repo storing your other assignments.
-
-Add (download) submodule
-```
-git submodule add <repository-url> <local-folder-name-you-like>
-```
-Initialization
-```
-git submodule update --init --recursive
-```
-Verify submodule status
-```
-git submodule status
-```
+### Students
+Ming-Chieh Hu, 6186416
+Daan Schlosser, 5726042
+Neelabh Singh, 6052045
+Lars van Blokland, 4667778
 
 ### Folder Structure
 ```
@@ -35,6 +25,4 @@ git submodule status
 │   └── ... (any code goes in that folder, you can create new folders in that folder)
 └── README.md
 ```
-The `/data` folder contains the output you obtain with your code for the 2 dataset given in the starting code.
-
-In the `README.md`, add the name and student number of each of the members.
+The `/data` folder contains both the input and output for the 2 given datasets.
