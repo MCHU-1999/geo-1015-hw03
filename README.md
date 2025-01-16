@@ -2,10 +2,10 @@
 A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing.
 
 ### Students
-Ming-Chieh Hu, 6186416
-Daan Schlosser, 5726042
-Neelabh Singh, 6052045
-Lars van Blokland, 4667778
+Ming-Chieh Hu, 6186416\
+Daan Schlosser, 5726042\
+Neelabh Singh, 6052045\
+Lars van Blokland, 4667778\
 
 ### Folder Structure
 ```
