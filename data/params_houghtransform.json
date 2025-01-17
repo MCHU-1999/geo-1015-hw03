@@ -1,7 +1,0 @@
-{
-  "input_file": "bk_subset1.laz",
-  "HoughTransform": {
-    "alpha": 50,
-    "epsilon": 0.15
-  }
-}
