@@ -4,8 +4,7 @@ import numpy as np
 import rerun as rr
 import scipy.spatial
 import ransac_simple
-from sklearn.cluster import DBSCAN
-import dbscan
+import clustering
 
 
 def normal_from_3pt(pt1, pt2, pt3):
@@ -199,8 +198,8 @@ def distance_cluster(pts: np.ndarray, delta, n_min=10):
         segment_indices = np.where(pts[:, 3] == segment_id)[0]
         segment_points = pts[segment_indices, :3]  # Only use x, y, z for clustering
 
-        # Apply DBSCAN clustering to the points in the current segment
-        labels = dbscan.cluster_by_distance(segment_points, delta, n_min)
+        # Apply clustering to the points in the current segment
+        labels = clustering.cluster_by_distance(segment_points, delta, n_min)
 
         # Update the segment IDs for each cluster
         for cluster_label in np.unique(labels):
