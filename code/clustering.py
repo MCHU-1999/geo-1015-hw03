@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import KDTree
 
 
+# This is actually not DBscan AT ALL!
 def cluster_by_distance(points, distance_threshold, min_samples):
     """
     Cluster points based purely on distance using an iterative approach.
@@ -16,10 +17,9 @@ def cluster_by_distance(points, distance_threshold, min_samples):
     n_clusters: number of clusters found
     """
     n_points = len(points)
-    labels = np.full(n_points, -1)  # Initialize all points as unassigned
+    labels = np.full(n_points, -1)
     current_label = 0
     
-    # Build KD-tree for efficient nearest neighbor search
     tree = KDTree(points)
     
     # Process each unassigned point
