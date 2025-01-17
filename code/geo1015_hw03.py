@@ -11,7 +11,7 @@ import laspy
 import ransac
 import regiongrowing
 
-# RERUN_VIZ = False
+RERUN_VIZ = False
 RERUN_VIZ = True
 
 
@@ -33,18 +33,18 @@ def main():
         print(e)
         sys.exit()
 
-    # if "RANSAC" in jparams:
-    #     print("==> RANSAC")
-    #     pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
-    #     write_ply(pts, "out_ransac.ply")
+    if "RANSAC" in jparams:
+        print("==> RANSAC")
+        pts = ransac.detect(lazfile, jparams["RANSAC"], RERUN_VIZ)
+        write_ply(pts, "out_ransac.ply")
     if "RegionGrowing" in jparams:
         print("==> RegionGrowing")
         pts = regiongrowing.detect(lazfile, jparams["RegionGrowing"], RERUN_VIZ)
         write_ply(pts, "out_regiongrowing.ply")
-    # if "HoughTransform" in jparams:
-    #     print("==> HoughTransform")
-    #     # pts = houghtransform.detect(lazfile, jparams["HoughTransform"], RERUN_VIZ)
-    #     write_ply(pts, "out_houghtransform.ply")
+    if "HoughTransform" in jparams:
+        print("==> HoughTransform")
+        pts = houghtransform.detect(lazfile, jparams["RegionGrowing"], RERUN_VIZ)
+        write_ply(pts, "out_houghtransform.ply")
 
 
 def write_ply(pts, filename):
