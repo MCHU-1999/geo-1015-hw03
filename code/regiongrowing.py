@@ -30,6 +30,10 @@ def detect(lazfile, params, viz=False):
     k = params["k"]  # Number of nearest neighbors
     max_angle = params["max_angle"]  # Angle threshold in degrees
 
+    min_seeds = params['min_seeds'] # Minimum number of seed points or its top 2% of planarity
+    min_region_size = params['min_region_size'] #smallest size of a region
+
+
     tree = KDTree(points)
 
     # Function to compute normals and plane fitting errors together
@@ -85,7 +89,7 @@ def detect(lazfile, params, viz=False):
 
         return normals, planarity
 
-    def select_seeds(planarity, min_seeds=6000):
+    def select_seeds(planarity, min_seeds):
         # sort points by planarity descending
         sorted_indices = np.argsort(-planarity)  # Negative to sort in descending order
 
@@ -93,13 +97,12 @@ def detect(lazfile, params, viz=False):
         n_seeds = max(min_seeds, len(planarity) // 50)  # At least min_seeds or 2% of points
         return sorted_indices[:n_seeds]
 
-    def region_growing(points, normals, k, max_angle, tree, seed_points):
+    def region_growing(points, normals, k, max_angle, tree, seed_points,min_region_size):
 
         max_angle_rad = np.deg2rad(max_angle)
         n = len(points)
         processed = np.zeros(n, dtype=bool)
         regions = []
-        min_region_size = 10  # Minimum points for a valid region
 
         for seed in seed_points:
             if processed[seed]:
@@ -148,16 +151,16 @@ def detect(lazfile, params, viz=False):
 
     # Main processing
     print("Computing normals and fitting errors...")
-    normals, fitting_errors = compute_normals_and_fitting_error(points, tree, k)
+    normals, planarity = compute_normals_and_fitting_error(points, tree, k)
 
     # Select seed points based on fitting errors
     print("Selecting seed points...")
-    seed_points = select_seeds(fitting_errors)
+    seed_points = select_seeds(planarity, min_seeds)
     print(f"Selected {len(seed_points)} seed points")
 
 
     print("Growing regions...")
-    segment_ids = region_growing(points, normals, k, max_angle, tree, seed_points)
+    segment_ids = region_growing(points, normals, k, max_angle, tree, seed_points, min_region_size)
 
     # Combine results
     result = np.hstack((points, segment_ids.reshape(-1, 1)))
