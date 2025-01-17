@@ -3,6 +3,8 @@ from scipy.spatial import KDTree
 from scipy.linalg import svd
 import rerun as rr
 import time
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def detect(lazfile, params, viz=False):
@@ -21,27 +23,18 @@ def detect(lazfile, params, viz=False):
       - a NumPy array Nx4; each point has x-y-z-segmentid
     """
 
-    # Extract points from the LAZ file
     points = np.vstack((lazfile.x, lazfile.y, lazfile.z)).transpose()
     print("Points shape:", points.shape)  # Debug print
 
-    # Extract parameters
+
     k = params["k"]  # Number of nearest neighbors
     max_angle = params["max_angle"]  # Angle threshold in degrees
 
-    # Create a KDTree for nearest neighbor search
     tree = KDTree(points)
 
     # Function to compute normals and plane fitting errors together
     def compute_normals_and_fitting_error(points, tree, k):
         """
-        Compute normals and geometric features using PCA of local neighborhoods.
-
-        Inputs:
-          points: Nx3 array of point coordinates
-          tree: KDTree for nearest neighbor search
-          k: Number of nearest neighbors (10-20 recommended)
-
         Outputs:
           normals: Nx3 array of normal vectors
           planarity: Nx1 array of planarity values (higher means more planar)
@@ -80,8 +73,7 @@ def detect(lazfile, params, viz=False):
 
                 normals[i] = normal
 
-                # Compute planarity feature: (λ2 - λ3)/λ1
-                # Higher value means more planar (closer to perfect plane)
+                # Compute planarity (λ2 - λ3)/λ1
                 planarity[i] = (eigenvalues[1] - eigenvalues[2]) / eigenvalues[0]
 
             except np.linalg.LinAlgError:
@@ -93,38 +85,32 @@ def detect(lazfile, params, viz=False):
 
         return normals, planarity
 
-    def select_seeds(planarity, min_seeds=1000):
-        """
-        Select seed points based on planarity score.
-        Higher planarity means better plane fit.
-        """
-        # Sort points by planarity (descending)
+    def select_seeds(planarity, min_seeds=6000):
+        # sort points by planarity descending
         sorted_indices = np.argsort(-planarity)  # Negative to sort in descending order
 
-        # Take points with highest planarity
+        # take points with highest planarity
         n_seeds = max(min_seeds, len(planarity) // 50)  # At least min_seeds or 2% of points
         return sorted_indices[:n_seeds]
 
     def region_growing(points, normals, k, max_angle, tree, seed_points):
-        """
-        Region growing using normal similarity.
-        """
+
         max_angle_rad = np.deg2rad(max_angle)
         n = len(points)
         processed = np.zeros(n, dtype=bool)
-        regions = []  # LR in pseudocode
+        regions = []
         min_region_size = 10  # Minimum points for a valid region
 
-        for seed in seed_points:  # for each s in LS do
+        for seed in seed_points:
             if processed[seed]:
                 continue
 
-            S = {seed}  # S ← {s}
-            R = set()  # R ← ∅
+            S = {seed}
+            R = set()
             region_normals = []
 
-            while S:  # while S is not empty do
-                p = S.pop()  # p ← pop(S)
+            while S:
+                p = S.pop()
 
                 # Find neighbours(p)
                 _, neighbors = tree.query(points[p], k=k + 1)
@@ -160,7 +146,7 @@ def detect(lazfile, params, viz=False):
 
         return segment_ids
 
-    # Main processing pipeline
+    # Main processing
     print("Computing normals and fitting errors...")
     normals, fitting_errors = compute_normals_and_fitting_error(points, tree, k)
 
@@ -169,7 +155,7 @@ def detect(lazfile, params, viz=False):
     seed_points = select_seeds(fitting_errors)
     print(f"Selected {len(seed_points)} seed points")
 
-    # Perform region growing
+
     print("Growing regions...")
     segment_ids = region_growing(points, normals, k, max_angle, tree, seed_points)
 
@@ -181,7 +167,7 @@ def detect(lazfile, params, viz=False):
         # Initialize rerun viewer
         rr.init("plane_detection", spawn=True)
 
-        # Log all points with a default color
+
         rr.log("all_points", rr.Points3D(points, colors=[78, 205, 189], radii=0.1))
 
         # Log each segment with a unique random color
@@ -210,4 +196,3 @@ def detect(lazfile, params, viz=False):
             time.sleep(0.5)
 
     return result
-
