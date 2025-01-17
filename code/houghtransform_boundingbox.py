@@ -8,22 +8,20 @@ import numpy as np
 import rerun as rr
 
 
-def perpendicular_distance(normal, vertex, sample):
-    return abs(np.dot(np.asarray(sample) - np.asarray(vertex), normal))
-
-
 def plane_intersects_bbox(plane_point, plane_normal, bbox_min, bbox_max):
     # Generate the 8 corners of the bounding box
-    bbox_corners = np.array([
-        [bbox_min[0], bbox_min[1], bbox_min[2]],
-        [bbox_min[0], bbox_min[1], bbox_max[2]],
-        [bbox_min[0], bbox_max[1], bbox_min[2]],
-        [bbox_min[0], bbox_max[1], bbox_max[2]],
-        [bbox_max[0], bbox_min[1], bbox_min[2]],
-        [bbox_max[0], bbox_min[1], bbox_max[2]],
-        [bbox_max[0], bbox_max[1], bbox_min[2]],
-        [bbox_max[0], bbox_max[1], bbox_max[2]],
-    ])
+    bbox_corners = np.array(
+        [
+            [bbox_min[0], bbox_min[1], bbox_min[2]],
+            [bbox_min[0], bbox_min[1], bbox_max[2]],
+            [bbox_min[0], bbox_max[1], bbox_min[2]],
+            [bbox_min[0], bbox_max[1], bbox_max[2]],
+            [bbox_max[0], bbox_min[1], bbox_min[2]],
+            [bbox_max[0], bbox_min[1], bbox_max[2]],
+            [bbox_max[0], bbox_max[1], bbox_min[2]],
+            [bbox_max[0], bbox_max[1], bbox_max[2]],
+        ]
+    )
 
     # Calculate the signed distance from the plane for each corner
     distances = np.dot(bbox_corners - plane_point, plane_normal)
@@ -74,18 +72,17 @@ def detect(lazfile, params, viz=False):
     # good: 10, 10, 0.2
 
     theta_max = math.radians(180)
-    theta_segment_size = 10
+    theta_segment_size = params["theta segment size"]
     theta_segment_count = round(360 / theta_segment_size)
     theta_range = np.linspace(0, theta_max, theta_segment_count, endpoint=False)
 
     phi_max = math.radians(360)
-    phi_segment_size = 10
+    phi_segment_size = params["phi segment size"]
     phi_segment_count = round(360 / phi_segment_size)
     phi_range = np.linspace(0, phi_max, phi_segment_count, endpoint=False)
 
-    rho_max = math.ceil(math.sqrt(
-        abs(extent[0] - extent[3]) ** 2 + abs(extent[1] - extent[4]) ** 2 + abs(extent[2] - extent[5]) ** 2) / 2)
-    rho_segment_size = 0.2
+    rho_max = math.ceil(math.sqrt(abs(extent[0] - extent[3]) ** 2 + abs(extent[1] - extent[4]) ** 2 + abs(extent[2] - extent[5]) ** 2) / 2)
+    rho_segment_size = params["rho segment size"]
     rho_segment_count = round((rho_max - epsilon) / rho_segment_size)
     rho_range = np.linspace(epsilon, rho_max, rho_segment_count)
 
@@ -93,8 +90,7 @@ def detect(lazfile, params, viz=False):
 
     spherical_coordinates = np.stack([theta_values, phi_values, rho_values], axis=3)
 
-    spherical_coordinates = spherical_coordinates.reshape(theta_segment_count * phi_segment_count * rho_segment_count,
-                                                          3)
+    spherical_coordinates = spherical_coordinates.reshape(theta_segment_count * phi_segment_count * rho_segment_count, 3)
 
     # Creation plane vectors
     plane_vectors = [
@@ -255,9 +251,69 @@ def detect(lazfile, params, viz=False):
 
     return np.asarray(points_with_ids)
 
-    # segment_ids = np.random.randint(low=0, high=10, size=lazfile.header.point_count)
-    # pts = np.vstack((lazfile.x, lazfile.y, lazfile.z, segment_ids)).transpose()
-    # return pts
+
+def generate_pointcloud_chunks(lazfile, chunk_size):
+    mean_x = statistics.mean(lazfile.x)
+    mean_y = statistics.mean(lazfile.y)
+    mean_z = statistics.mean(lazfile.z)
+
+    h = lazfile.header
+    extent = [*h.min, *h.max]
+
+    extent = extent - np.array([mean_x, mean_y, mean_z, mean_x, mean_y, mean_z])
+
+    points = np.vstack((lazfile.x, lazfile.y, lazfile.z)).transpose()
+
+    rng = np.random.default_rng()
+
+    rng.shuffle(points)
+
+    centered_points = points - np.array([mean_x, mean_y, mean_z])
+
+    x_chunk_count = round(abs(extent[0] - extent[3]) / chunk_size)
+    x_chunks = np.linspace(extent[0], extent[3], x_chunk_count)
+
+    y_chunk_count = round(abs(extent[1] - extent[4]) / chunk_size)
+    y_chunks = np.linspace(extent[1], extent[4], y_chunk_count)
+
+    chunk_lists = [[[] for _ in range(x_chunk_count)] for _ in range(y_chunk_count)]
+
+    for index, centered_point in enumerate(centered_points):
+        x_index = -1
+        y_index = -1
+
+        for x in range(0, x_chunk_count - 1, 1):
+            if x_chunks[x] <= centered_point[0] and centered_point[0] < x_chunks[x + 1]:
+                x_index = x
+
+                for y in range(0, y_chunk_count - 1, 1):
+                    if y_chunks[y] <= centered_point[1] and centered_point[1] < y_chunks[y + 1]:
+                        y_index = y
+
+                        break
+
+                break
+
+        chunk_lists[y_index][x_index].append(centered_point)
+
+    chunk_size_lists = [[[] for _ in range(x_chunk_count)] for _ in range(y_chunk_count)]
+
+    chunked_points = []
+
+    for y in range(y_chunk_count):
+        for x in range(x_chunk_count):
+            for point in chunk_lists[y][x]:
+                chunked_points.append(np.append(point, int(str(x) + str(y))))
+
+            chunk_size_lists[y][x] = len(chunk_lists[y][x])
+
+    print(chunked_points[:5])
+
+    rerun_visualization(np.asarray(chunked_points))
+
+    sys.exit()
+
+    return chunked_points
 
 
 def rerun_visualization(pts):
