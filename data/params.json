@@ -4,8 +4,10 @@
     "k": 15,
     "min_score": 15,
     "epsilon": 0.3,
-	"dbscan_eps": 2.5,
-    "dbscan_min_samples": 10
+    "cluster": {
+      "delta": 2.5,
+      "min_samples": 10
+    }
   },
   "RegionGrowing": {
     "k": 15,

@@ -1,8 +1,8 @@
 {
   "input_file": "bk_subset1.laz",
   "RANSAC": {
-    "k": 1000,
-    "min_score": 400,
-    "epsilon": 0.05
+    "k": 20,
+    "min_score": 50,
+    "epsilon": 0.1
   }
 }
