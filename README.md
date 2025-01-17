@@ -21,9 +21,6 @@ Lars van Blokland, 4667778
 ```
 ├── report
 │   └── report.pdf
-│   └── (report.ipynb if used)
-│   └── (report.tex if used)
-│   └── (report.docx if used)
 ├── data
 │   └── out_bk.ply 
 │   └── out_bk_subset1.ply 
@@ -32,7 +29,7 @@ Lars van Blokland, 4667778
 │   └── ransac.py
 │   └── regiongrowing.py
 │   └── houghtransform.py
-│   └── ... (any code goes in that folder, you can create new folders in that folder)
+│   └── ...
 └── README.md
 ```
 The `/data` folder contains both the input and output for the 2 given datasets.
