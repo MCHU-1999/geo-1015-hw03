@@ -41,7 +41,9 @@ Create a configuration file `params.json` in [`data/`](data/) according to the f
     "rho segment size": 0.1,
     "chunk size": 25,
     "acceleration factor": 10,
-    "reprocessing": true
+    "reprocessing": true,
+    "cleaning distance": 2,
+    "cleaning neighbors": 80
   }
 }
 ```
