@@ -9,8 +9,7 @@ from pathlib import Path
 import houghtransform
 import laspy
 import ransac
-# import regiongrowing
-import regiongrowing_noloop
+import regiongrowing
 
 # RERUN_VIZ = False
 RERUN_VIZ = True
@@ -40,7 +39,7 @@ def main():
     #     write_ply(pts, "out_ransac.ply")
     if "RegionGrowing" in jparams:
         print("==> RegionGrowing")
-        pts = regiongrowing_noloop.detect(lazfile, jparams["RegionGrowing"], RERUN_VIZ)
+        pts = regiongrowing.detect(lazfile, jparams["RegionGrowing"], RERUN_VIZ)
         write_ply(pts, "out_regiongrowing.ply")
     # if "HoughTransform" in jparams:
     #     print("==> HoughTransform")
