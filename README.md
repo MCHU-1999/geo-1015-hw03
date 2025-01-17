@@ -1,5 +1,15 @@
 # geo-1015-hw03
-A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing.
+A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing.  
+
+### The 3 Algorithms
+- RANSAC: [`code/ransac.py`](code/ransac.py)  
+- Region Growing: [`code/regiongrowing.py`](code/regiongrowing.py)  
+- Hough Transform: [`code/houghtransform.py`](code/houghtransform.py)  
+
+### Other Functions
+- distance clusterin for RANSAC: [`code/clustering.py`](code/clustering.py)  
+- basic RANSAC from terrain-book: [`code/ransac_simple.py`](code/ransac_simple.py)  
+- plotting function using matplotlib: [`code/plot.py`](code/plot.py)  
 
 ### Students
 Ming-Chieh Hu, 6186416\
