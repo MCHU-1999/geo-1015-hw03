@@ -133,6 +133,7 @@ def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1, multiplier=5.
         pts: numpy array of shape (N, 4) containing [x, y, z, id] coordinates
         planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0
         epsilon: maximum distance from point to plane to be considered an inlier
+        multiplier: radius = epsilon * multiplier
     
     Returns:
         pts: a NumPy array Nx4; each point has x-y-z-segmentid
