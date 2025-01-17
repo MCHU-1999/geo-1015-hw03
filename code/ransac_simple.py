@@ -14,7 +14,7 @@ def normal_from_3pt(pt1, pt2, pt3):
 
 def ransac(pts: np.ndarray, mask=None, iterations=1000, epsilon=0.1):
     """
-    RANSAC algorithm for plane detection in point cloud data.
+    Simple RANSAC algorithm from terrainbook.
     
     Parameters:
     pts: numpy array of shape (N, 3) containing [x, y, z] coordinates
@@ -59,16 +59,15 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
     """
     Extract multiple planes from point cloud using RANSAC
     
-    Parameters:
-        pts: numpy array of shape (N, 4) containing [x, y, z, segment_id] coordinates
+    Parameters: 
+        pts: numpy array of shape (N, 4) containing [x, y, z, id] coordinates
         min_score: minimum number of inliers required for a plane to be considered valid
     
-    Returns:
+    Returns: 
         pts: a NumPy array Nx4; each point has x-y-z-segmentid
-        segment_count: number of segments
+        planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0
     """
     planes = []
-    scores = []
     id_count = 1
     invalid_count = 0
     pts3d = pts[:, :3].copy()
@@ -77,7 +76,7 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
     while True:
         score, inliers, plane = ransac(pts3d, mask, iterations, epsilon)
 
-        if invalid_count > 20:
+        if invalid_count > 5:
             break
 
         if score < min_score:
@@ -89,7 +88,6 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
         pts[inliers, 3] = id_count
         mask[inliers] = 0
         planes.append(plane)
-        scores.append(score)
 
         print("\nid:", id_count)
         print("best_score:", score)
@@ -97,4 +95,4 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
 
         id_count += 1
 
-    return pts, np.array(scores), np.array(planes)
+    return pts, np.array(planes)

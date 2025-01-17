@@ -1,3 +1,8 @@
 __pycache__
-/data/*.laz
 .DS_Store
+/data/*.laz
+/data/*.json
+/data/out_houghtransform.ply
+/data/out_ransac.ply
+/data/out_regiongrowing.ply
+/images/*

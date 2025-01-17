@@ -4,8 +4,7 @@ import numpy as np
 import rerun as rr
 import scipy.spatial
 import ransac_simple
-from sklearn.cluster import DBSCAN
-import dbscan
+import clustering
 
 
 def normal_from_3pt(pt1, pt2, pt3):
@@ -91,12 +90,10 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
     
     Returns: 
         pts: a NumPy array Nx4; each point has x-y-z-segmentid
-        scores: a NumPy array of inline scores except uncatagorized (id = 0)
         planes: a NumPy array of planes parameters [[a, b, c, d]...] satisfy ax + by + cz + d = 0
     """
 
     planes = []
-    scores = []
     id_count = 1
     invalid_count = 0
     kdtree = scipy.spatial.KDTree(pts[:, :3])
@@ -105,7 +102,7 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
     while True:
         score, inliers, plane = ransac(kdtree, mask, iterations, epsilon)
 
-        if invalid_count > 10:
+        if invalid_count > 5:
             break
 
         if score < min_score:
@@ -117,19 +114,18 @@ def extract_planes(pts: np.ndarray, min_score=400, iterations=1000, epsilon=0.1)
         pts[inliers, 3] = id_count
         mask[inliers] = 0
         planes.append(plane)
-        scores.append(score)
         
         print("\nid:", id_count)
         print("score:", score)
-        print(f"plane: {plane[0]}x + {plane[1]}y + {plane[2]}z + {plane[3]:.2f} = 0")
+        # print(f"plane: {plane[0]}x + {plane[1]}y + {plane[2]}z + {plane[3]:.2f} = 0")
         print("remaining pts:", len(np.where(mask==1)[0]))
 
         id_count += 1
 
     del kdtree
-    return pts, np.array(scores), np.array(planes)
+    return pts, np.array(planes)
 
-def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1):
+def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1, multiplier=5.0):
     """
     Reclassify points based on their neighboring data; this process corrects points that were initially misclassified.
     
@@ -159,11 +155,11 @@ def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1):
                 collison.append(index)
         
         pts_copy = pts.copy()
-        radius = epsilon * 5
+        radius = epsilon * multiplier
         for index in collison:
             pts[index, 3] = 0
-            n_indices = np.array(kdtree.query_ball_point(pts[index, :3], radius))
-            indices = n_indices[pts_copy[n_indices, 3] > 0]
+            neighbor_indices = np.array(kdtree.query_ball_point(pts[index, :3], radius))
+            indices = neighbor_indices[pts_copy[neighbor_indices, 3] > 0]
 
             if len(indices) == 0:
                 pts[index, 3] = i + 1
@@ -177,14 +173,14 @@ def post_process(pts: np.ndarray, planes: np.ndarray, epsilon=0.1):
     del kdtree
     return pts
 
-def dbscan_refinement(pts: np.ndarray, eps, min_samples):
+def distance_cluster(pts: np.ndarray, delta, n_min=10):
     """
-    Refine RANSAC-segmented planes using DBSCAN to split into separate clusters
+    Refine RANSAC-segmented planes using simplified DBscan (only distance is considered, density is not take into account) to split into separate clusters
 
     Parameters:
         pts: numpy array of shape (N, 4) containing [x, y, z, segment_id] coordinates
-        eps: DBSCAN's maximum distance between samples for them to be considered in the same cluster
-        min_samples: Minimum number of samples in a cluster
+        delta: maximum distance between samples for them to be considered in the same cluster
+        n_min: Minimum number of samples in a cluster
 
     Returns:
         pts: Refined point cloud with updated segment IDs
@@ -202,8 +198,8 @@ def dbscan_refinement(pts: np.ndarray, eps, min_samples):
         segment_indices = np.where(pts[:, 3] == segment_id)[0]
         segment_points = pts[segment_indices, :3]  # Only use x, y, z for clustering
 
-        # Apply DBSCAN clustering to the points in the current segment
-        labels = dbscan.cluster_by_distance(segment_points, eps, min_samples)
+        # Apply clustering to the points in the current segment
+        labels = clustering.cluster_by_distance(segment_points, delta, n_min)
 
         # Update the segment IDs for each cluster
         for cluster_label in np.unique(labels):
@@ -217,7 +213,7 @@ def dbscan_refinement(pts: np.ndarray, eps, min_samples):
 
     return pts_copy
 
-def detect(lazfile, params, viz=False):
+def detect(lazfile, params: dict, viz=False):
     """
     Function that detects all the planes in the input LAZ file.
 
@@ -229,21 +225,35 @@ def detect(lazfile, params, viz=False):
     Output:
       - a NumPy array Nx4; each point has x-y-z-segmentid
     """
+
+    start_time = time.time()
+
+    # get parameters
+    k = params.get("k", 500)
+    min_score = params.get("min_score", 300)
+    epsilon = params.get("epsilon", 0.1)
+    multiplier = params.get("multiplier", 5.0)
+    delta = params.get("delta", 4.0)
+    min_samples = params.get("min_samples", 10)
+    print(f"parameters:\nk: {k}\nmin_score: {min_score}\nepsilon: {epsilon}\nmultiplier: {multiplier}\ndelta: {delta}\nmin_samples: {min_samples}")
+    
     ids = np.zeros(lazfile.header.point_count, dtype=int)
     pts = np.vstack((lazfile.x, lazfile.y, lazfile.z, ids)).transpose()
 
-    # pts, scores, planes = ransac_simple.extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
-    # pts, scores, planes = ransac_simple.extract_planes(pts, 500, 1000, 0.1)
-    # pts, scores, planes = extract_planes(pts, params["min_score"], params["k"], params["epsilon"])
-    pts, scores, planes = extract_planes(pts, 300, 1000, 0.10)
-    pts = post_process(pts, planes, 0.1)
-    # id_count = len(planes) + 1
+    # pts, planes = ransac_simple.extract_planes(pts, min_score, k, epsilon)
+    pts, planes = extract_planes(pts, min_score, k, epsilon)
+    pts = post_process(pts, planes, epsilon, multiplier)
 
-    # DBSCAN refinement
-    dbscan_eps = 4.0
-    dbscan_min_samples = 10
-    pts = dbscan_refinement(pts, dbscan_eps, dbscan_min_samples)
+    # clustering
+    pts = distance_cluster(pts, delta, min_samples)
+
     id_count = int(np.max(pts[:, 3])) + 1
+
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"Time taken is: {total_time:4f} s")
+    print(f"Surfaces found: {id_count-1}")
+
 
     if viz:
         # -- init rerun viewer
@@ -273,6 +283,6 @@ def detect(lazfile, params, viz=False):
                     level=rr.TextLogLevel.TRACE,
                 ),
             )
-            time.sleep(0.5)
+            time.sleep(0.1)
 
     return pts

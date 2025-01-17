@@ -1,29 +1,26 @@
 # geo-1015-hw03
-A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing
+A repo for geo-1015 Digital terrain modeling homework 3 file syncing and storing.  
 
-### Git Submodule
-make it as a git submodule if you already have another github repo storing your other assignments.
+### The 3 Algorithms
+- RANSAC: [`code/ransac.py`](code/ransac.py)  
+- Region Growing: [`code/regiongrowing.py`](code/regiongrowing.py)  
+- Hough Transform: [`code/houghtransform.py`](code/houghtransform.py)  
 
-Add (download) submodule
-```
-git submodule add <repository-url> <local-folder-name-you-like>
-```
-Initialization
-```
-git submodule update --init --recursive
-```
-Verify submodule status
-```
-git submodule status
-```
+### Other Functions
+- distance clusterin for RANSAC: [`code/clustering.py`](code/clustering.py)  
+- basic RANSAC from terrain-book: [`code/ransac_simple.py`](code/ransac_simple.py)  
+- plotting function using matplotlib: [`code/plot.py`](code/plot.py)  
+
+### Students
+Ming-Chieh Hu, 6186416\
+Daan Schlosser, 5726042\
+Neelabh Singh, 6052045\
+Lars van Blokland, 4667778
 
 ### Folder Structure
 ```
 ├── report
 │   └── report.pdf
-│   └── (report.ipynb if used)
-│   └── (report.tex if used)
-│   └── (report.docx if used)
 ├── data
 │   └── out_bk.ply 
 │   └── out_bk_subset1.ply 
@@ -32,9 +29,7 @@ git submodule status
 │   └── ransac.py
 │   └── regiongrowing.py
 │   └── houghtransform.py
-│   └── ... (any code goes in that folder, you can create new folders in that folder)
+│   └── ...
 └── README.md
 ```
-The `/data` folder contains the output you obtain with your code for the 2 dataset given in the starting code.
-
-In the `README.md`, add the name and student number of each of the members.
+The `/data` folder contains both the input and output for the 2 given datasets.
