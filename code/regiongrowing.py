@@ -118,10 +118,7 @@ def detect(lazfile, params, viz=False):
                 candidate_normals = normals[neighbors]
 
                 # Vectorized angle calculation using Einstein Summation
-                # angles = np.arccos(np.clip(np.abs(np.einsum('ij,j->i', candidate_normals, region_normal)), -1.0, 1.0))
-
-                # # Vectorized angle calculation using dot product
-                angles = np.arccos(np.clip(np.dot(candidate_normals, region_normal), -1.0, 1.0))
+                angles = np.arccos(np.clip(np.abs(np.einsum('ij,j->i', candidate_normals, region_normal)), -1.0, 1.0))
 
                 fits = (angles < max_angle_rad) & ~processed[neighbors]
                 valid_neighbors = neighbors[fits]
@@ -208,6 +205,5 @@ def detect(lazfile, params, viz=False):
                     level=rr.TextLogLevel.TRACE,
                 ),
             )
-            # time.sleep(0.5)
 
     return result
