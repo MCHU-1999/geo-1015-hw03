@@ -1,15 +1,17 @@
-import time
-
-import matplotlib.pyplot as plt
 import numpy as np
-import rerun as rr
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.linalg import svd
 from scipy.spatial import KDTree
+from scipy.linalg import svd
+import rerun as rr
+import time
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def detect(lazfile, params, viz=False):
     """
+    !!! TO BE COMPLETED !!!
+    !!! You are free to subdivide the functionality of this function into several functions !!!
+
     Function that detects all the planes in the input LAZ file.
 
     Inputs:
@@ -20,15 +22,17 @@ def detect(lazfile, params, viz=False):
     Output:
       - a NumPy array Nx4; each point has x-y-z-segmentid
     """
-    start_time = time.time()
 
     points = np.vstack((lazfile.x, lazfile.y, lazfile.z)).transpose()
+    print("Points shape:", points.shape)  # Debug print
+
 
     k = params["k"]  # Number of nearest neighbors
     max_angle = params["max_angle"]  # Angle threshold in degrees
 
-    min_seeds = params['min_seeds']  # Minimum number of seed points or its top 2% of planarity
-    min_region_size = params['min_region_size']  # smallest size of a region
+    min_seeds = params['min_seeds'] # Minimum number of seed points or its top 2% of planarity
+    min_region_size = params['min_region_size'] #smallest size of a region
+
 
     tree = KDTree(points)
 
@@ -93,55 +97,55 @@ def detect(lazfile, params, viz=False):
         n_seeds = max(min_seeds, len(planarity) // 50)  # At least min_seeds or 2% of points
         return sorted_indices[:n_seeds]
 
-    def region_growing(points, normals, k, max_angle, tree, seed_points, min_region_size):
+    def region_growing(points, normals, k, max_angle, tree, seed_points,min_region_size):
 
         max_angle_rad = np.deg2rad(max_angle)
         n = len(points)
         processed = np.zeros(n, dtype=bool)
         regions = []
 
-        # Precompute all neighbors
-        all_neighbors = tree.query(points, k=k + 1)[1][:, 1:]
-
         for seed in seed_points:
             if processed[seed]:
                 continue
 
-            S = [seed]
-            R = []
-            region_normal = normals[seed]
+            S = {seed}
+            R = set()
+            region_normals = []
 
             while S:
                 p = S.pop()
 
-                neighbors = all_neighbors[p]
-                candidate_normals = normals[neighbors]
+                # Find neighbours(p)
+                _, neighbors = tree.query(points[p], k=k + 1)
 
-                # Vectorized angle calculation using Einstein Summation
-                angles = np.arccos(np.clip(np.abs(np.einsum('ij,j->i', candidate_normals, region_normal)), -1.0, 1.0))
+                # foreach candidate point c ∈ neighbours(p) do
+                for c in neighbors[1:]:  # Skip first neighbor (point itself)
+                    # Check if point fits regardless of processed state
+                    if R:
+                        region_normal = np.mean(region_normals, axis=0)
+                        region_normal = region_normal / np.linalg.norm(region_normal)
+                    else:
+                        region_normal = normals[seed]
 
-                fits = (angles < max_angle_rad) & ~processed[neighbors]
-                valid_neighbors = neighbors[fits]
+                    # Check if point fits with region
+                    angle = np.arccos(np.clip(np.abs(np.dot(region_normal, normals[c])), -1.0, 1.0))
 
-                # Update region and queue
-                S.extend(valid_neighbors)
-                R.extend(valid_neighbors)
-                processed[valid_neighbors] = True
-
-                # Update running average of region normals
-                if R:
-                    region_normal = np.mean(normals[R], axis=0)
-                    region_normal /= np.linalg.norm(region_normal)
+                    # Only add to region if unprocessed AND fits
+                    if angle < max_angle_rad and not processed[c]:
+                        S.add(c)  # add c to S
+                        R.add(c)  # add c to R
+                        processed[c] = True
+                        region_normals.append(normals[c])
 
             # append R to LR if it meets minimum size
             if len(R) >= min_region_size:
-                regions.append(R)
+                regions.append(list(R))
                 print(f"Found region {len(regions)} with {len(R)} points")
 
         # Convert to segment IDs format
         segment_ids = np.zeros(n, dtype=int)
         for i, region in enumerate(regions, start=1):
-            segment_ids[region] = i
+            segment_ids[list(region)] = i
 
         return segment_ids
 
@@ -149,36 +153,23 @@ def detect(lazfile, params, viz=False):
     print("Computing normals and fitting errors...")
     normals, planarity = compute_normals_and_fitting_error(points, tree, k)
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Runtime: {elapsed_time:.2f} seconds")
-
     # Select seed points based on fitting errors
     print("Selecting seed points...")
     seed_points = select_seeds(planarity, min_seeds)
     print(f"Selected {len(seed_points)} seed points")
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Runtime: {elapsed_time:.2f} seconds")
 
     print("Growing regions...")
     segment_ids = region_growing(points, normals, k, max_angle, tree, seed_points, min_region_size)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Runtime: {elapsed_time:.2f} seconds")
 
     # Combine results
     result = np.hstack((points, segment_ids.reshape(-1, 1)))
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Total runtime: {elapsed_time:.2f} seconds")
 
     # Visualize results
     if viz:
         # Initialize rerun viewer
         rr.init("plane_detection", spawn=True)
+
 
         rr.log("all_points", rr.Points3D(points, colors=[78, 205, 189], radii=0.1))
 
@@ -205,5 +196,6 @@ def detect(lazfile, params, viz=False):
                     level=rr.TextLogLevel.TRACE,
                 ),
             )
+            time.sleep(0.5)
 
     return result
