@@ -1,0 +1,928 @@
+\documentclass[a4paper,9pt]{article}
+
+\usepackage{amsmath}  % For math symbols
+\usepackage{amssymb}  % For math symbols
+\usepackage{graphicx} % For including graphics
+\usepackage{framed,color}
+\usepackage{listings}
+\usepackage{xcolor}   % For coloring the code
+\usepackage{hyperref} % For hyperlinks
+\usepackage{float}
+\usepackage[a4paper, portrait, margin=2cm]{geometry}
+\usepackage{underscore}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tcolorbox}
+\usepackage{tabularx}
+\usepackage[ruled,vlined]{algorithm2e}
+\tcbuselibrary{minted,breakable,xparse,skins}
+\setlength{\parindent}{0pt}
+\SetAlgoSkip{bigskip}
+
+
+% Ensures figures use their own counter
+\renewcommand{\thefigure}{\arabic{figure}}
+% Ensures listings use their own counter
+\renewcommand{\thelisting}{\arabic{listing}}
+
+\definecolor{bg}{gray}{0.95}
+\DeclareTCBListing[use counter=figure]{mintedbox}{O{}m!O{}O{}}{%
+  breakable=false,
+  listing engine=minted,
+  listing only,
+  minted language=#2,
+  minted style=pastie,
+  minted options={%
+    linenos,
+    gobble=0,
+    breaklines=true,
+    breakafter=,,
+    fontsize=\small,
+    numbersep=8pt,
+    #1},
+  boxsep=0pt,
+  left skip=0pt,
+  right skip=0pt,
+  left=25pt,
+  right=0pt,
+  top=3pt,
+  bottom=3pt,
+  arc=5pt,
+  leftrule=0pt,
+  rightrule=0pt,
+  bottomrule=2pt,
+  toprule=2pt,
+  colback=bg,
+  colframe=gray!40,
+  enhanced,
+  overlay={%
+    \begin{tcbclipinterior}
+    \fill[gray!20!white] (frame.south west) rectangle ([xshift=20pt]frame.north west);
+    \end{tcbclipinterior}},
+  #3}
+
+\title{GEO-1015, Assignment-3: The best shape detection algorithm is...}
+\author{Ming-Chieh Hu (6186416), Daan Schlosser (5726042) \\ 
+        Neelabh Singh (6052045) \& Lars van Blokland (4667778)}
+
+\date{January 17th, 2025}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+
+
+% \section{Example Section}
+
+% \subsection{Code Listing Example}
+
+% \begin{listing}[H]
+% \begin{mintedbox}{Python}
+% def normal_from_3pt(pt1, pt2, pt3):
+%     v1 = pt2 - pt1
+%     v2 = pt3 - pt1
+%     normal = np.cross(v1, v2)
+
+%     # Normalize the normal vector
+%     normal_norm = np.linalg.norm(normal)
+%     if normal_norm == 0:
+%         raise Exception(f"Points are collinear!\n{pt1}\n{pt2}\n{pt3}\n")
+        
+%     return normal / normal_norm
+% # code here
+% \end{mintedbox}
+% \caption{CAPTION}
+% \label{code:1}
+% \end{listing}
+
+
+% \subsection{Figure Example}
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{example-image-a}
+%     \caption{CAPTION}
+%     \label{fig:1-1}
+% \end{figure}
+% \newpage
+
+
+
+% Introduction
+\section{Introduction}
+\subsection{Overview of the assignment and objectives}
+In this assignment, we evaluate three popular shape detection algorithms - RANSAC, Region Growing and Hough Transform - to determine the best approach for identifying planes in spatial datasets.
+\\\par
+The primary objectives of this report are:
+\begin{enumerate}
+    \item To understand the underlying principles and ideas of the three algorithms.
+    \item To implement and refine these algorithms using real-world datasets and to assess their performance.
+    \item To compare the algorithms based on metrics such as accuracy, execution time, and robustness.
+    \item To provide a final recommendation on the best algorithm for plane detection for AHN4 data.
+\end{enumerate}
+
+
+\subsection{Used dataset}
+In this assignment we use the given BK-City dataset (and a subset) which contains a 3d point cloud of TU Delft's Bouwkunde faculty building, where the ground and nearby vegetation has been removed. This building is part of the AHN4 dataset.
+
+\newpage
+
+% Methodology, for RANSAC, Region Growing and Hough Transform
+
+\section{Methodology}
+\subsection{RANSAC}
+We start by implementing the basic RANSAC algorithm in the terrain-book. The algorithm works but there are many improvements that can be made, which will be mentioned in this and the next sections.
+
+\subsubsection{Improved RANSAC}
+From the results of the BK city dataset, we observed some unexpected horizontal planes (Figure \ref{fig:improved_ransac}.a). Although these planes met the minimum inlier point threshold, they weren't the intended outcomes. To address this, we developed an improved selection process to better guide the function towards the desired results (Algorithm \ref{alg:improved_ransac}). 
+The new selection process follows a two-step procedure. First, it randomly selects a single point. Then, it selects three additional points from the neighbors of the first point and use them as parameter to construct plane. By doing so, the selected 3 seed points are more likely to lie on the same plane, effectively reducing the occurrence of unwanted horizontal planes. Note that the search radius for this process is set to 5 meters, a moderate scale suitable for buildings.
+
+\begin{algorithm}[H]
+\caption{Improved RANSAC algorithm using nearest neighbor}
+\label{alg:improved_ransac}
+\KwIn{An input point cloud $P$, a $mask$ to determine whether a point has been categorized or not, the error threshold $\epsilon$, and the number of iterations $k$}
+\KwOut{The set of points $C_{best}$, the score $s_{best}$, the detected plane instance $\mathcal{I}_{best}$}
+
+$s_{best} \gets 0$\;
+$C_{best} \gets 0$\;
+$\mathcal{I}_{best} \gets \text{nil}$\;
+\For{$i \gets 0 \dots k$}{
+    $p_0 \gets 1$ randomly selected point from $P$\;
+    $M \gets 3$ randomly selected point from neighbors($p_0$)\;
+    $\mathcal{I} \gets$ plane instance constructed from $M$\;
+    $C \gets \emptyset$\;
+    \ForAll{$p \in P$}{
+        $d \gets \text{distance}(p, \mathcal{I})$\;
+        \If{$d < \epsilon$}{
+            \If{p is not masked}{
+                Add $p$ to $C$\;
+            }
+        }
+    }
+    $s \gets \text{score}(C)$\;
+    \If{$s > s_{best}$}{
+        $s_{best} \gets s$\;
+        $C_{best} \gets C$\;
+        $\mathcal{I}_{best} \gets \mathcal{I}$\;
+    }
+}
+\Return{$C_{best}, s_{best}, \mathcal{I}_{best}$}
+\end{algorithm}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, trim={14cm 0cm 14cm 14cm}, clip]{ransac/simple_300_1000_01.png} &
+        \includegraphics[width=\linewidth, trim={14cm 0cm 14cm 14cm}, clip]{ransac/improved_300_1000_01.png} \\
+        (a) Simple RANSAC & (b) Improved RANSAC
+    \end{tabularx}
+    \caption{Different implementation of RANSAC outcomes (without using post-processing and clustering functions). In these 2 pictures we use parameters: $k=1000$, $s_{min}=300$, and $\epsilon=0.1$.}
+    \label{fig:improved_ransac}
+\end{figure}
+
+
+\subsubsection{Post-processing function}
+Up to this point, we have successfully eliminated the unwanted horizontal planes. However, the model still generates some unintended 'stripes' near the intersection of planes, which is a special case. This issue arises from the mask we designed; while it simplifies the classification process, it also limits our ability to handle this scenario. To address this, we propose a post-process (as Algorithm \ref{alg:ransac_post_process}) that identifies points near plane intersections and re-classifies them based on the class of their nearest neighbors. It is clearly shown in Figure \ref{fig:ransac_post_process} that the 'stripes' are eliminated by the post-processing function. Note that the nearest neighbors algorithm here searches within a radius of $5\times\epsilon$, the 5 here is a parameter $multiplier$ we added and exposed to users.
+
+\begin{algorithm}[H]
+\caption{Post-processing function}
+\label{alg:ransac_post_process}
+\KwIn{An input point cloud $P$ with id as its 4th dimension, list of detected plane instance $L_\mathcal{I}$, the error threshold $\epsilon$}
+\KwOut{Point cloud $P$ with id as its 4th dimension}
+
+\ForAll{$\mathcal{I} \in L_\mathcal{I}$}{
+    $collison \gets \emptyset$\;
+    \ForAll{$p \in P$}{
+        $d \gets \text{distance}(p, \mathcal{I})$\;
+        \If{$d < \epsilon$}{
+            \If{$p$ doesn't have same id as $\mathcal{I}$}{
+                Add $p$ to $collison$\;
+            }
+        }
+    }
+    \ForAll{$p \in collison$}{
+        $N \gets \text{neighbors}(p, (5\times\epsilon))$\;
+        $p[3] \gets \text{majority class found in } N$\;
+    }
+}
+\Return{$P$}
+\end{algorithm}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, trim={3cm 0cm 3cm 0cm}, clip]{ransac/before_pp.png} &
+        \includegraphics[width=\linewidth, trim={3cm 0cm 3cm 0cm}, clip]{ransac/after_pp.png} \\
+        Without post-process & With post-process
+    \end{tabularx}
+    \caption{Outcomes before and after post-processing. (To better showcase the 'stripe' we use BK subset here.) In these 2 pictures we use parameters: $k=1000$, $s_{min}=50$, and $\epsilon=0.1$.}
+    \label{fig:ransac_post_process}
+\end{figure}
+
+\subsubsection{Cluster by distance}
+Some points classified by RANSAC may belong to the same large plane, even though they are not connected and are located far apart. In such cases, we aim to separate these points into distinct surfaces to more accurately represent the building's geometry. While DBSCAN is a powerful algorithm for this task, we observed significant variations in surface density due to the LiDAR sensor's shot angle. To address this issue more effectively, we propose a clustering function (Algorithm \ref{alg:cluster_by_distance}) that relies solely on the distances between clusters, rather than their density.
+\\\par
+This function introduces 2 new parameters into our method: the distance threshold $\delta$ and $n_{min}$, the minimum score required for a cluster to be considered valid. Note that, when this function is applied, the outcome may include clusters with surface inliers less than $s_{min}$.
+
+\begin{algorithm}[H]
+\caption{Cluster by distance}
+\label{alg:cluster_by_distance}
+\KwIn{An subset of point cloud $P_s$ in a specific plane (with id as its 4th dimension), a minimum score $n_{min}$ for a surface to be considered valid, the distance $\delta$ defining the radius of a neighborhood}
+\KwOut{Point cloud $P_s$ with id as its 4th dimension}
+
+$todo \gets [ ]$\;
+$id \gets 1$\;
+$P_s[...,3] \gets 0$\;
+
+\ForAll{$p_s \in P_s$}{
+    \If{$p_s$ is not labeled as 0}{
+        \textbf{continue}
+    }
+    Append $p_s$ to $todo$\;
+    \While{$todo$ is not empty}{
+        $current \gets \text{pop}(todo)$\;
+        $N \gets \text{neighbors}(current, \delta)$\;
+        \ForAll{$p_s \in N$}{
+            \If{$p_s$ is labeled as 0}{
+                $size \gets size + 1$\;
+                Append $p_s$ to $todo$\;
+                $p_s[3] \gets id$\;
+            }
+        }
+    }
+    $id \gets id + 1$\;
+    \For{$i \gets 0 \dots id$}{
+        $P_i \gets$ \{all points $p_s$ labeled as $i$\}\;
+        \If{$\text{size}(P_i) < n_{min}$}{
+            $P_i[..., 3] \gets 0$\;
+        }
+    }
+}
+\Return{$P_s$}
+\end{algorithm}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/before_cluster.png} &
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/after_cluster.png} \\
+        Without clustering & With clustering
+    \end{tabularx}
+    \caption{Outcomes before and after distance clustering. In these 2 pictures we use parameters: $k=1000$, $s_{min}=300$, $\epsilon=0.1$, $multiplier=5$. Clustering function uses $\delta=4.0$, $n_{min}=10$.}
+    \label{fig:cluster_by_distance}
+\end{figure}
+
+
+\subsubsection{Parameters and their effects}
+In the simplest form of RANSAC, there are three key parameters: the number of iterations $k$, the minimum score $s_{min}$ required for a plane to be considered valid, and the error threshold $\epsilon$, which defines the boundary for determining whether a point belongs to a plane.
+\\\par
+
+\textbf{Original RANSAC parameters}
+\par
+As long as the computer has sufficient processing power, a larger value of $k$ generally yields better results. However, if $k$ is set too low, the number of iterations may be insufficient to identify the "best" plane, resulting in an outcome that resembles a collage of poorly segmented planes (Figure \ref{fig:variant_k}). Beyond a certain point, increasing $k$ further will reach a bottleneck where it no longer improves the results.
+$s_{min}$ is a critical parameter that requires careful selection. A larger $s_{min}$ will ignore smaller, trivial surfaces, while a smaller $s_{min}$ will include more trivial surfaces (Figure \ref{fig:variant_smin}). However, a smaller $s_{min}$ may also increase processing time.
+Similar to $s_{min}$, $\epsilon$ must also be chosen carefully. A larger $\epsilon$ often results in cascade-like patterns, while a smaller $\epsilon$ may create a camouflage-like figure due to its low tolerance for variation (Figure \ref{fig:variant_epsilon}).
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/k_20.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/k_100.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/k_500.png} \\
+        $k = 20$, 312 surfaces found & $k = 100$, 226 surfaces found & $k = 500$, 246 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $k$ values. In these 3 pictures, $s_{min}$ is set to 300 and $\epsilon$ is set to 0.1.}
+    \label{fig:variant_k}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/s_min_100.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/s_min_400.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/s_min_1000.png} \\
+        $s_{min} = 100$, 396 surfaces found & $s_{min} = 200$, 225 surfaces found & $s_{min} = 400$, 142 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $s_{min}$ values. In these 3 pictures, $k$ is set to 500 and $\epsilon$ is set to 0.1.}
+    \label{fig:variant_smin}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/epsilon_04.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/epsilon_02.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/epsilon_005.png} \\
+        $\epsilon = 0.4$, 459 surfaces found & $\epsilon = 0.2$, 344 surfaces found & $\epsilon = 0.05$, 277 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $\epsilon$ values. In these 3 pictures, $k$ is set to 500 and $s_{min}$ is set to 300.}
+    \label{fig:variant_epsilon}
+\end{figure}
+
+\textbf{New parameters used in post-processing and clustering}
+\par
+The $multiplier$ parameter is used to define the search radius for our post-processing function. The radius is calculated as $multiplier \times \epsilon$ to perform the nearest neighbors query. Choosing a reasonable value for the multiplier is straightforward. For example, in the BK city dataset, we set $\epsilon = 1$ and $multiplier = 5$, resulting in a 0.5-meter search radius, which works well with the point density and distribution of the dataset. 
+Choosing an excessively large $multiplier$ can lead to false classifications of points, while selecting a value that is too small may prevent some points from finding their neighbors, causing them to be excluded from the surface (Figure \ref{fig:variant_multi}).
+\\\par
+The parameters $\delta$ and $n_{min}$ are integral to the distance-based clustering function. A large $\delta$ may prevent the program from properly separating planes into distinct surfaces (Figure \ref{fig:variant_delta}), while a small $\delta$ can result in the generation of numerous trivial surfaces. Similarly, $n_{min}$ significantly affects the resulting surfaces. A larger $n_{min}$ eliminates more small clusters, whereas a smaller $n_{min}$ preserves these trivial clusters (Figure \ref{fig:variant_n_min}).
+
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/multi_1.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/multi_5.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/multi_20.png} \\
+        $multiplier = 1$, 266 surfaces found & $multiplier = 5$, 253 surfaces found & $multiplier = 20$, 266 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $multiplier$ values. With $k=500$, $s_{min}=300$, $\epsilon=0.1$, $\delta=4.0$, $n_{min}=10$.}
+    \label{fig:variant_multi}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/delta_2.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/delta_4.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/delta_8.png} \\
+        $\delta = 2$, 266 surfaces found & $\delta = 4$, 213 surfaces found & $\delta = 8$, 208 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $\delta$ values. With $k=500$, $s_{min}=300$, $\epsilon=0.1$, $multiplier=5$, $n_{min}=10$.}
+    \label{fig:variant_delta}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/n_min_5.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/n_min_25.png} & 
+        \includegraphics[width=\linewidth, trim={16cm 0cm 16cm 10cm}, clip]{ransac/n_min_125.png} \\
+        $n_{min} = 5$, 364 surfaces found & $n_{min} = 25$, 167 surfaces found & $n_{min} = 125$, 106 surfaces found
+    \end{tabularx}
+    \caption{RANSAC with different $n_{min}$ values. With $k=500$, $s_{min}=300$, $\epsilon=0.1$, $multiplier$, $\delta=4.0$.}
+    \label{fig:variant_n_min}
+\end{figure}
+
+\subsubsection{Time Complexity}
+We estimated the time complexity of algorithm \ref{alg:improved_ransac}, \ref{alg:ransac_post_process}, \ref{alg:cluster_by_distance} with $n$ = the number of points in point cloud $P$.
+\\\par
+The time complexity of our RANSAC is $O(|L_\mathcal{I}|\times(kn + n\log n))$, where $k$ is the iteration number and $|L_\mathcal{I}|$ is the number of 'plane' instances before distance clustering $(|L_\mathcal{I}| \ll n)$. The time complexity of post-process is $O(|L_\mathcal{I}| \times (n + c(\log n + m)))$, Where $c$ is the number of points in $collision$ $(c < n)$ and $m$ is the number of neighbors within search radius. The time complexity of distance clustering is $O(n\log n + nm)$. Where $m$ is the number of neighbors within $\delta$.
+\\\par
+Since we have $m \ll n$, $c < n$, combining them sequentially yields: $O(|L_\mathcal{I}|\times(kn + n\log n))$.
+
+
+% To extract all the possible planes from a given point cloud, we'll need to implement another function to extract planes iteratively. It is thus important to provide a stop condition to break the loop when no more planes can be found. In this case, the stop condition is straightforward: if RANSAC fails to detect a valid plane in five consecutive attempts, the loop will stop.
+
+% \begin{algorithm}[H]
+% \caption{Extract all planes with RANSAC}
+% \label{alg:extract_ransac}
+% \KwIn{A 3 dimensional point cloud $P$, a minimum score $s_{min}$ for a plane to be considered valid, the error threshold $\epsilon$, and the number of iterations $k$}
+% \KwOut{Point cloud $P$ with id as its 4th dimension, list of detected plane instance $L_\mathcal{I}$}
+
+% $mask \gets [1, 1, ..., 1]$\;
+% $id \gets 1$\;
+% $count_{invalid} \gets 0$\;
+% $L_\mathcal{I} \gets []$\;
+
+% \While{$count_{invalid} < 5$}{
+%     $C, s, \mathcal{I} \gets \textbf{ransac}(p,mask,\epsilon,k)$\;
+
+%     \If{$s < s_{min}$}{
+%         $count_{invalid} \gets count_{invalid} + 1$\;
+%     }
+%     \Else{
+%         $count_{invalid} \gets 0$\;
+%         Append $\mathcal{I}$ to $L_\mathcal{I}$\;
+
+%         \ForAll{$p \in C$}{
+%             Mask $p$\;
+%             Append $id$ to $p$\;
+%         }
+%     }
+% }
+% $id \gets id + 1$\;
+% \Return{$P, L_\mathcal{I}$}
+% \end{algorithm}
+
+
+
+
+
+
+\newpage
+
+\subsection{Region Growing}
+\subsubsection{Algorithm explanation}
+The Region Growing algorithm is a method for extracting regions from a point cloud by iteratively expanding regions from seed points based on a similarity criterion. In our implementation, we focus on 3D point clouds and use normal vectors as the primary criterion for region growing. A region R grows by examining neighboring points of its members and adding candidate points c that satisfy a similarity criterion. For plane detection, this criterion involves checking if the angle between the normal vector of c and the region's normal is below a threshold. If the angle is small, c is added to 
+R; otherwise, it is ignored. The process continues until no more compatible points are found, at which point the algorithm moves to the next seed point to grow a new region. 
+
+\begin{algorithm}[H]
+\caption{Region Growing Algorithm}
+\label{alg:region_growing}
+\KwIn{An input point cloud \( P \), a list of seed points \( L_S \), a function to find the neighbours of a point \( neighbours() \)}
+\KwOut{A list with detected regions \( L_R \)}
+
+\( L_R \leftarrow [ ] \)\;
+\For{each \( s \) in \( L_S \)}{
+    \( S \leftarrow \{ s \} \)\;
+    \( R \leftarrow \emptyset \)\;
+    \While{\( S \) is not empty}{
+        \( p \leftarrow \text{pop}(S) \)\;
+        \For{each candidate point \( c \in neighbours(p) \)}{
+            \If{\( c \) was not previously assigned to any region}{
+                \If{\( c \) fits with \( R \)}{
+                    Add \( c \) to \( S \)\;
+                    Add \( c \) to \( R \)\;
+                }
+            }
+        }
+    }
+    Append \( R \) to \( L_R \)\;
+}
+\Return \( L_R \)
+\end{algorithm}
+
+\subsubsection{Seed point selection}
+
+The selection of seed points is a critical operation within the Region Growing algorithm that identifies the starting points for region expansion. Numerous methods have been proposed for selecting seed points, but our implementation commences with normal and planarity computation for each point in the point cloud \( P \). From the original point, the algorithm looks for \( k \)-nearest neighbors using a KDTree, centers this neighborhood, and computes the covariance matrix. Then, Principal Component Analysis (PCA) extracts the normal vector (the eigenvector associated with the smallest eigenvalue) and computes planarity as \( \frac{\lambda_2 - \lambda_3}{\lambda_1} \), where \( \lambda_1 \), \( \lambda_2 \), and \( \lambda_3 \) are the eigenvalues in descending order. The normals are oriented upwards, and the planarity values are stored. In the second step, points are sorted by planarity in descending order, and the top \( N \) points (where \( N = \max(\text{min\_seed}, 0.02 \times \text{total\_points}) \), with \(\text{min\_seed}\) being a new parameter for the minimum number of seed points) are selected as seed points. These seed points will begin the region growing process, ensuring that regions start with the most reliable planar points.
+
+
+\begin{algorithm}[H]
+\caption{Seed Point Selection for Region Growing}
+\label{alg:plane_detection}
+
+\KwIn{
+    - A point cloud $P$ from a LAZ file\;
+    - Parameters:
+      \Begin{
+        - $k$: Number of nearest neighbors\;
+        - $max\_angle$: Angle threshold in degrees\;
+        - $min\_seed$: Minimum number of seed points to select\;
+      }
+}
+\KwOut{
+    - A list of seed points for region growing\;
+}
+
+\BlankLine
+\textbf{Step 1: Compute Normals and Planarity}
+\Begin{
+    \For{each point in points}{
+        Find $k$ nearest neighbors using KDTree\;
+        Center the neighborhood by subtracting the centroid\;
+        Compute covariance matrix of the neighborhood\;
+        Perform PCA to get eigenvalues and eigenvectors\;
+        Extract normal vector (eigenvector of smallest eigenvalue)\;
+        Ensure normal points upward (positive $z$)\;
+        Compute planarity = $(\lambda_2 - \lambda_3) / \lambda_1$\;
+        Store normal and planarity for each point\;
+    }
+}
+
+\BlankLine
+\textbf{Step 2: Select Seed Points}
+\Begin]{
+    Sort points by planarity in descending order\;
+    Select top $N$ seed points ($N = \max(min\_seed, 2\% \text{ of total points})$\;
+}
+\end{algorithm}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Image/normal_vectors_visualization.png}
+    \caption{ Normal vectors of points and selected Seed points}
+    \label{fig:1-1}
+\end{figure}
+
+\subsubsection{Implementation and modifications}
+Our method retains the core idea of Region Growing while introducing further improvements. This base algorithm uses normal vectors and angle-based similarity criteria to determine the membership of region, while KDTree data structure is implemented for efficient nearest neighbor searching in large point clouds. The key modifications we applied are as follows:
+
+1. Dynamic normal vector updates: Apart from using static normals, we will update the average normal vector of the region every time a point is added to the region. This adopts the least-coupled approach to ensure a good coherence of the regions detected and improves the plane detection.
+
+2. Region size filtering: The minimum size threshold for a region will be set to eliminate very small sections of the detected region from processing due to noise. Although this introduces yet another parameter, this measure very effectively increased the quality of the planes detected by reducing the number of discarded planes.  
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Image/Screenshot 2025-01-17 at 1.25.00 PM.png}
+    \caption{ Outcome for BK city having 165 planes. Above we use parameters: $k = 25,
+max\_angle = 30, min\_seeds = 20000, min\_region\_size = 10$.}
+    \label{fig:1-1}
+\end{figure}
+
+\newpage
+\begin{algorithm}[H]
+\caption{Region Growing using Normal Similarity}
+\label{alg:region_growing}
+
+\KwIn{
+    - $points$: A NumPy array of shape $N \times 3$ containing point coordinates $(x, y, z)$\;
+    - $normals$: A NumPy array of shape $N \times 3$ containing normal vectors for each point\;
+    - $k$: Number of nearest neighbors to consider\;
+    - $max\_angle$: Maximum allowed angle (in degrees) between normals for region growing\;
+    - $tree$: A KDTree built from the points for efficient nearest neighbor search\;
+    - $seed\_points$: A list of seed points to start region growing\;
+    - $min\_region\_size$: Minimum number of points in a region 
+}
+\KwOut{
+    - A NumPy array $segment\_ids$ of shape $N$ containing segment IDs for each point\;
+}
+
+\BlankLine
+\textbf{Region Growing}
+\Begin{
+    Convert $max\_angle$ to radians: $max\_angle\_rad = \text{np.deg2rad}(max\_angle)$\;
+    Initialize:
+    \Begin{
+        $processed =$ array of False (size = number of points)\;
+        $regions = []$ (to store detected regions)\;
+        $min\_region\_size = 10$ (minimum points for a valid region)\;
+    }
+    \For{each seed point $seed$ in $seed\_points$}{
+        \If{$processed[seed]$ is True}{
+            Skip to the next seed point\;
+        }
+        Initialize:
+        \Begin{
+            $S = \{seed\}$ (stack of points to process)\;
+            $R = \emptyset$ (current region)\;
+            $region\_normals = []$ (normals of points in the region)\;
+        }
+        \While{$S$ is not empty}{
+            Pop a point $p$ from $S$\;
+            Find $k + 1$ nearest neighbors of $p$ using $tree$\;
+            \For{each neighbor $c$ in neighbors (excluding $p$)}{
+                \If{$processed[c]$ is False}{
+                    Compute the region normal:
+                    \Begin{
+                        \If{$R$ is not empty}{
+                            $region\_normal = \text{mean}(region\_normals)$\;
+                            Normalize $region\_normal$\;
+                        }
+                        \Else{
+                            $region\_normal = normals[seed]$\;
+                        }
+                    }
+                    Compute the angle between $region\_normal$ and $normals[c]$\;
+                    \If{angle $< max\_angle\_rad$}{
+                        Add $c$ to $S$\;
+                        Add $c$ to $R$\;
+                        Mark $c$ as processed\;
+                        Add $normals[c]$ to $region\_normals$\;
+                    }
+                }
+            }
+        }
+        \If{size of $R \geq min\_region\_size$}{
+            Add $R$ to $regions$\;
+            Print region size for debugging\;
+        }
+    }
+}
+
+\BlankLine
+\textbf{Assign Segment IDs}
+\Begin{
+    Initialize $segment\_ids =$ array of zeros (size = number of points)\;
+    \For{each region in $regions$}{
+        Assign a unique segment ID to all points in the region\;
+    }
+    \Return{$segment\_ids$} \tcp*{Return the final segment IDs}
+}
+\end{algorithm}
+
+\subsubsection{Parameters and their effects}
+In the simplest form of Region growing, there are two key parameters: the number of number of nearest neighbours k, the $minimum_angle$ difference required for a normal to be considered for determining whether a point belongs to a plane.
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/5, 25, 3000.png} & 
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/25, 5, 3000.png} & 
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/25, 25, 500.png} \\
+        $k = 5$, $max\_angle = 25^\circ$, $min\_seeds = 3000$ & 
+        $k = 25$, $max\_angle = 5^\circ$, $min\_seeds = 3000$ & 
+        $k = 25$, $max\_angle = 25^\circ$, $min\_seeds = 500$ \\
+        % Second row
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/25, 25, 3000.png} & 
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/25, 25, 7000.png} & 
+        \includegraphics[width=\linewidth, trim={10cm 5cm 10cm 5cm}, clip]{Image/daan/100, 25, 3000.png} \\
+        $k = 25$, $max\_angle = 25^\circ$, $min\_seeds = 3000$ & 
+        $k = 25$, $max\_angle = 25^\circ$, $min\_seeds = 7000$ & 
+        $k = 100$, $max\_angle = 25^\circ$, $min\_seeds = 3000$
+    \end{tabularx}
+    \caption{Region Growing segmentation with various $k$, $max\_angle$, and $min\_seeds$ values.}
+    \label{fig:region_growing_variants}
+\end{figure}
+
+\paragraph{Core Parameters}
+The neighborhood size, \( k \), controls the number of neighbors considered for normal estimation. This parameter significantly impacts the smoothness of the computed normals and, consequently, the quality of the segmentation. We observed that a range of 5 to 30 neighbors generally produces optimal results. Values of \( k \) smaller than 5 resulted in noisy normals, while values exceeding 45 caused over-smoothing.
+
+The angular threshold, \( max\_angle \), defines the maximum permissible angle between the normals of two adjacent points for them to be part of the same region. Testing revealed that lower values, such as \( 1^\circ \) to \( 3^\circ \), led to excessive over-segmentation, where even minor variations in plane orientation caused unnecessary splitting.
+
+\paragraph{Additional Parameters}
+The \( min\_region\_size \) parameter filters out regions with fewer than 10 points, effectively eliminating noise and small, irrelevant segments, this can be exposed to user and be free to change based on the users knowledge of dataset. Meanwhile, \( min\_seeds \) determines the minimum number of seed points required for initiating region growth. This parameter is crucial in avoiding premature or excessive segmentation. By default, it is set to the (where \( N = \max(\text{min\_seed}, 0.02 \times \text{total\_points}) \), where \( n \) is the total number of points in the dataset.
+
+\paragraph{Conclusion}
+The optimal parameter configuration for Region Growing segmentation is highly dependent on the dataset's characteristics and the specific requirements of the analysis. Based on our findings, values of \( k = 25 \), \( max\_angle = 30^\circ \), and \( min\_seeds = 3000 \) yielded the best results for typical architectural datasets.
+
+
+
+\subsubsection{Time Complexity}
+The three main components of time complexity of our region growing algorithm are as follows. The first one is \( O(n \times k \log n) \) for the normal estimation, where \( n \) and \( k \) are as usual the number of points in the point cloud and the number of nearest neighbors used for the PCA respectively. The seed point selection process requires \( O(n \log n) \), and it arranges the points on the basis of the planarity. The region growing complexity is \( O(|LS| \times |R| \times k \times (\log n + |R|)) \), where \( |LS| \) changes, but is usually contained within (\( min\_seed \)) or 2\% of the total points., and \( |R| \) is the average region size. As \( |R| \ll n \) and \( k \) is constant, we can take an average-case complexity in sequence, which is \( O(n \log n) \).
+
+\subsubsection{Optimization impact on time complexity}
+In our implementation, which deviates from the terrainbook's implementation, we precompute all neighbors in the k-d tree. This results in only having to query the k-d tree once before the loop, instead of querying the k-d tree each time it loops. This improves the total runtime significantly, resulting in an overall runtime of around 220x faster.
+
+\subsubsection{Worst-case Time Complexity}
+In the worst case, the point cloud forms a flat wall, or when the angle of the wall is lenient, to make matters worse, \( |R| \) cannot be tightly restrictive and may grow to become as big as \( n \) with many seed points (\( |LS| \approx n \)). It eventually leads to \( O(n^2 \log n) \) for input size \( n \).
+
+
+
+
+\subsection{Hough Transform}
+\subsubsection{Algorithm explanation}
+The Hough Transform detects planes in point clouds by generating a large number of candidate planes, which are then voted on by points depending on whether or not a point lies on or near a plane. Candidate planes with more votes than others are assumed to be a better description of the true planes.
+
+\subsubsection{Implementation}
+
+\paragraph{Plane generation}
+
+Planes are initially generated in spherical coordinates using the parameters Theta, Phi and Rho. Theta and Phi are both in degrees and signify the angle interval between each plane. Rho is in meters and signifies the distance between each plane. Combining all values in the parameter intervals results in an array of triplets, where each triplet describes a single plane. This array is converted into two new arrays: The first contains points in Cartesian space, which are the points on the planes closest to the origin. The Second array contains the normal vectors for each of these planes. These arrays are respectively \verb|plane_points| and \verb|plane_normals.|
+
+\paragraph{Accumulator voting}
+
+Our accumulator consists of an array, with at every index a sub-array for each plane. For every point the algorithm computes the number of planes that lie within Epsilon distance of the current point. To compute this distance, the point is subtracted from the \verb|plane_points| array, which results in an array of vectors that go from the current point to the plane. Then we compute the dot product of this new array and the \verb|plane_normals| array. The result is an array of values, where every value indicates the distance between the current point and each of the planes. Planes that have a distance smaller than epsilon have a vote added in the accumulator.
+
+\paragraph{Plane consolidation}
+
+After voting has concluded it is necessary to extract the final planes from the accumulator. The underlying assumption is that planes with more votes are more likely to be correct. The consolidation step works by iterating over the planes in the accumulator, starting with the plane that got the most votes. All points found by this plane are removed from all other planes. Planes that now have less votes than the parameter \verb|Alpha| are removed from the accumulator. Then the accumulator is resorted and the process repeats with the now second largest plane. When this loop terminates, each point will only be contained by a single plane.
+
+\subsubsection{Modifications}
+
+\paragraph{Point cloud chunking}
+
+One of the main issues encountered when processing the entire BK dataset was a "layer cake" (see \ref{fig:hough_chunking_yn}) like affect caused by horizontal planes dissecting the entire point cloud. Since these planes would find large numbers of points, they would be prioritized over legitimate planes. Our solution was to split the point cloud up into separate chunks, so that each chunk could be processed individually and then merged. This ensured that the horizontal planes would be outvoted by more desirable ones. As an additional bonus, processing the point cloud in chunks also results in a significant speedup.
+
+\paragraph{Bounding box based plane removal}
+
+To ensure that every point has the potential to be discovered by one of the planes, we generate many more planes than are necessary. While the voting process will eventually eliminate any unnecessary planes, a large number of these planes will never acquire a single vote. Many of these zero-vote planes can be detected by doing an intersection test between the planes and the bounding box of the point cloud. If a plane doesn't intersect with the bounding box of a point cloud, it will never intersect with any of its points.
+
+\paragraph{Intermediate vote based plane removal}
+
+Assuming that the point cloud was shuffled before voting, planes acquire votes fairly uniformly during the voting period. This means that voting trends can be used to determine which planes will eventually be relevant and which won't. The \verb|Acceleration_factor| parameter is used by the algorithm to determine when to pause during the voting process. The median number of votes of the most popular planes is then used to cull a large number of unpopular planes. This vastly speeds up the algorithm, as significantly less planes need to be considered for the remainder of the points.
+
+\paragraph{Plane re-processing}
+
+After acquiring planes for each chunk, these planes need to be merged together. Although each chunk uses the same set of planes, different chunks find subtly different planes for sections of points that should be defined by a single plane. This results in a "patchy" classification (see \ref{fig:hough_reprocessing_yn}). To fix this, the entire algorithm is performed again using only the planes found by processing the chunks. Due to the lowered number of planes this step is much faster than the initial pass. The resulting classification has less total planes and isn't as "patchy".
+
+\paragraph{Plane cleaning}
+
+Since the generated planes are infinitely large, they may "cut" through sections they aren't supposed to. During the consolidation process larger planes take points from smaller ones, meaning that a large plane could steal points from a smaller one (see \ref{fig:hough_cleaning_yn}). To fix this, we perform a final cleaning step. A KD-Tree is made using the classified points, which is used to find the closest neighbors for each point. Every point the counts the number of neighbors belonging to a different plane. If enough neighbors belong to a different plane, the current point is reclassified.
+
+\subsubsection{Parameters and their effects}
+
+Hough Transform makes use of the following parameters:
+\begin{itemize}
+    \item \verb|Theta|, \verb|Phi| and \verb|Rho| which describe the number of planes and their distribution across the space.
+    \item \verb|Alpha| which describes the minimum number of points a plane needs to be a plane
+    \item \verb|Epsilon| which describes how far away a point is allowed to be from a plane before it is no longer a part of it.
+    \item \verb|Chunk size| which describes how large each chunk of points is in the x and y directions.
+    \item \verb|Acceleration factor| which describes at which point in the voting process the accumulator is culled of useless planes.
+    \item \verb|Reprocessing| whether or not the planes are reprocessed after merging the chunks together.
+    \item \verb|Cleaning distance| which describes the maximum distance a neighbor can have when performing plane cleaning.
+    \item \verb|Cleaning neighbors| which describers how many neighbors are evaluated when performing plane cleaning.
+\end{itemize}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/epsilon_03.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/epsilon_045.png} \\
+        \verb|Epsilon| is 0.15 & \verb|Epsilon| is 0.30 & \verb|Epsilon| is 0.45
+    \end{tabularx}
+    \caption{Hough Transform with different \texttt{Epsilon} values.}
+    \label{fig:hough_epsilon}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/theta_20.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/theta_30.png} \\
+        \verb|Theta| is 10 & \verb|Theta| is 20 & \verb|Theta| is 30
+    \end{tabularx}
+    \caption{Hough Transform with different \texttt{Theta} intervals.}
+    \label{fig:hough_theta}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/phi_20.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/phi_30.png} \\
+        \verb|Phi| is 10 & \verb|Phi| is 20 & \verb|Phi| is 30
+    \end{tabularx}
+    \caption{Hough Transform with different \texttt{Phi} intervals.}
+    \label{fig:hough_phi}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/rho_03.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/rho_05.png} \\
+        \verb|Rho| is 10 & \verb|Rho| is 20 & \verb|Rho| is 30
+    \end{tabularx}
+    \caption{Hough Transform with different \texttt{Rho} intervals.}
+    \label{fig:hough_rho}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XXX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/chunks_10.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/chunks_50.png} \\
+        Chunk size is 10 & Chunk size is 25 & Chunk size is 40
+    \end{tabularx}
+    \caption{Hough Transform with different chunk sizes.}
+    \label{fig:hough_chunk_count}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/no_chunks.png} \\
+        Chunking is enabled & Chunking is disabled
+    \end{tabularx}
+    \caption{Hough Transform when chunking of points is enabled and disabled.}
+    \label{fig:hough_chunking_yn}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/no_reprocessing.png} \\
+        Reprocessing is enabled & Reprocessing is disabled
+    \end{tabularx}
+    \caption{Hough Transform when reprocessing of the planes is enabled and disabled.}
+    \label{fig:hough_reprocessing_yn}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, clip]{Image/hough/standard.png} & 
+        \includegraphics[width=\linewidth, clip]{Image/hough/no_cleaning.png} \\
+        Cleaning is enabled & Cleaning is disabled
+    \end{tabularx}
+    \caption{Hough Transform when cleaning of the planes is enabled and disabled.}
+    \label{fig:hough_cleaning_yn}
+\end{figure}
+
+\newpage
+
+% Results and comparison of the algorithsm
+\section{Results and comparison}
+
+\subsection{Parameter Optimization}
+
+We fine-tuned our parameters with the following objectives, without any specific order or hierarchy:
+\begin{itemize}
+    \item Enhancing the sharpness of detected surfaces.
+    \item Minimizing the number of unclassified points.
+    \item Reducing the number of falsely classified points.
+    \item Maximizing time efficiency.
+\end{itemize}
+
+The parameters we ultimately selected are:
+\begin{itemize}
+    \item RANSAC: $k=1000$, $s_{min}=200$, $\epsilon=0.1$, $multiplier=5$, $\delta=3.5$, $n_{min}=20$.
+    \item Region Growing: $k=25$, $max\_angle=30$, $min\_seeds=20000$, $min\_region\_size=30$.
+    \item Hough Transform: $Alpha=50$, $Epsilon=0.15$ $Theta=10$, $Phi=10$, $Rho=0.1$, $Chunk Size=25$, $Acceleration factor=10$, $Reprocessing=true$, $Cleaning distance=2$, $Cleaning neighbors=80$
+\end{itemize}
+
+\subsection{Visualizations and Visual Analysis for each Algorithm}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth, trim={0cm 0cm 0cm 16cm}, clip]{ransac/BK_classified_pts.png} & 
+        \includegraphics[width=\linewidth, trim={0cm 0cm 0cm 16cm}, clip]{ransac/BK_all_pts.png} \\
+        RANSAC result: classified points. & RANSAC result: all points. \\
+    \end{tabularx}
+    \caption{Classified and non-classified points from RANSAC outcome, with $k=1000$, $s_{min}=200$, $\epsilon=0.1$, $multiplier=5$, $\delta=3.5$, $n_{min}=20$.}
+    \label{fig:ransac_viz_1}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth]{ransac/BK_nice_wall.png} & 
+        \includegraphics[width=\linewidth]{ransac/BK_bad_wall.png} \\
+        Some of the walls and even windows are extracted. & Some of the walls are being neglected. \\\\
+        % Second row
+        \includegraphics[width=\linewidth]{ransac/BK_tower.png} & 
+        \includegraphics[width=\linewidth]{ransac/BK_pattern.png} \\
+        It fails to identify most points of the tower. & Some points are missed in a specific pattern due to post-process.
+    \end{tabularx}
+    \caption{RANSAC outcome with $k=1000$, $s_{min}=200$, $\epsilon=0.1$, $multiplier=5$, $\delta=3.5$, $n_{min}=20$.}
+    \label{fig:ransac_viz_2}
+\end{figure}
+
+
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth]{Image/walls and window.png} & 
+        \includegraphics[width=\linewidth]{Screenshot 2025-01-17 at 1.51.38 PM.png} \\
+        The walls and even windows are extracted. & Curved Surfaces are not clearly segmented \\\\
+        % Second row
+        \includegraphics[width=\linewidth]{Image/Screenshot 2025-01-17 at 1.53.33 PM.png} & 
+        \includegraphics[width=\linewidth]{Image/small surface can be segmented if enough seed points are selected.png} \\
+        Bigger features are much clear and less noisy. & Small feature can be segmented with enough amount of seed points.
+    \end{tabularx}
+    \caption{Region Growing outcome 165 planes. Above we use parameters: $k = 25,
+max\_angle = 30, min\_seeds = 20000, min\_region\_size = 10$.}
+\end{figure}
+
+
+\begin{figure}[H]
+    \begin{tabularx}{\textwidth}{XX}
+        % First row
+        \includegraphics[width=\linewidth]{Image/hough/results_1.png} & 
+        \includegraphics[width=\linewidth]{Image/hough/results_2.png} \\
+        Some of the walls are missing & Some plains are still split, even after reprocessing \\\\
+        % Second row
+        \includegraphics[width=\linewidth]{Image/hough/results_3.png} & 
+        \includegraphics[width=\linewidth]{Image/hough/results_4.png} \\
+        The tower was not captured effectively & Most planes were captured nicely, but performance could definitely be better
+    \end{tabularx}
+    \caption{Hough Transform outcome: 150 planes. These images use the standard parameters}
+\end{figure}
+
+
+
+
+\subsection{Comparison of Methods}
+\subsubsection{Pros and cons of each algorithm}
+
+\textbf{RANSAC}
+\par
+Due to RANSAC's nature of randomness, it's possible to have different result every time running the program (unless someone fix the random seed). 
+\\\par
+While RANSAC gives excellent results within a short time frame (around 3–5 minutes for the BK city dataset), it struggles to detect smaller or less-dense planes. This limitation arises from the multiple parameters that require fine-tuning, which can be challenging due to their interdependence within our pipeline structure. Additionally, a plane-detection-specific RANSAC cannot identify certain curved surfaces (e.g., the BK Tower). To extract curved surfaces, RANSAC requires the incorporation of multiple detection models tailored for such geometries.
+\\\par
+\textbf{Region Growing}
+\par
+Region growing achieves comprehensive plane detection with high local accuracy as it is a bottom-up segmentation approach in which normal computation is performed using PCA, followed by planarity-based seed selection and iterative region growth via comparison with neighbors. It takes around 10-15 minutes to process the full BK-City dataset. The method donest have noise in bigger planes and also tries to segment the curved surfaces with least number of unclassified points. If seed points are there for all the planes correctly and the parameters are tuned well enough, then this method will have all the planes segmented properly with least noise.
+
+The bottleneck in the speed of the algorithm is outstandingly formed by KD-tree queries and normal computations. Performance varies by point cloud characteristics: planar regions process efficiently, whereas intricate geometries demand extra computation due to frequent normal comparisons. The method doesn't require prior knowledge of the number of planes, which increases its flexibility; independently-growing regions take more time in computation.
+\\\par
+
+\textbf{Hough Transform}
+\par
+Hough Transform has no identifiable pros. It is inherently slow due to the brute-force nature of the algorithm. Additionally the \verb|Theta|, \verb|Phi| and \verb|Rho| parameters which have arguably the largest impact on both speed and quality need to be fine tuned for each point cloud, making it very fragile. Hough Transform also requires many modifications from the base algorithm before it becomes workable on larger datasets. The chunking step is especially vital, as without it the point cloud would resemble a layered cake. Further work could focus on automatically determining optimal values for \verb|Theta|, \verb|Phi| and \verb|Rho|, although doing this would mean Hough Transform would become similar to Region Growing.
+
+
+
+\subsubsection{Comparison of algorithms (accuracy, speed, robustness)}
+
+\begin{table}[H]
+\begin{tabularx}{\textwidth}{lllll}
+\hline
+ & Time Complexity & Runtime (s) & Surfaces Found & Unclassified Points \\ \hline
+RANSAC & $O(|L_\mathcal{I}|\times(kn + n\log n))$ & 235.36 & 224 & 16189 \\
+Region Growing & $O(L_\mathcal{S}|\times |R| \times k \times (\log n + |R|)$ & 753.56 & 165 & 7874 \\
+Hough Transform & $O(|P|\times|Theta|\times|Phi|\times|Rho|)$ & 612.90 & 150 & 13433 \\ \hline
+\end{tabularx}
+\end{table}
+
+
+
+% Conclusion, with final verdict/recommendation
+\section{Conclusion}
+\par
+The best shape detection algorithm is... yet to be determined.
+\\\par
+\par
+In our opinion, without taking the overall run-time into account, the Region Growing algorithm gives the best result in terms of the \textit{unclassified points}, \textit{extracted surfaces}, \textit{visually interpretability}. The overall run-time of the Region Growing algorithm is due to the (re)calculation of the normal's and the neighbours in the k-d tree due to the required for-loop, which is inherently part of the Region-Growing algorithm/paradigm.
+\\\par
+\par
+We therefore also wrote a similar Region Growing approach: \verb|regiongrowing_noloop.py|. Which initiates the k-d tree and all the neighbours for the seed points, without in-between updating and querying of the k-d tree for each candidate point. 
+\\\par
+\par
+On the other hand, RANSAC and Hough Transform operate on a similar logic when it comes to identifying planes, and they produce comparable results. However, Hough Transform requires tuning a larger number of parameters, and the algorithm itself demands more improvements to function effectively.
+\\\par
+
+\end{document}
