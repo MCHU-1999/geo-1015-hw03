@@ -15,8 +15,7 @@ The packages we used (and thrie dependents) are in the [`requirements.txt`](requ
 - plotting function using matplotlib: [`code/plot.py`](code/plot.py)  
 
 ### parameters
-Create a configuration file `params.json` in [`data/`](data/) tbefore running the program.   
-Below are the parameters we used for each algorithm:
+Create a configuration file `params.json` in [`data/`](data/) according to the format below before running the program.   
 ```json
 {
   "input_file": "bk.laz",
