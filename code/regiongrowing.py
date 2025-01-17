@@ -100,48 +100,51 @@ def detect(lazfile, params, viz=False):
         processed = np.zeros(n, dtype=bool)
         regions = []
 
+        # Precompute all neighbors
+        all_neighbors = tree.query(points, k=k + 1)[1][:, 1:]
+
         for seed in seed_points:
             if processed[seed]:
                 continue
 
-            S = {seed}
-            R = set()
-            region_normals = []
+            S = [seed]
+            R = []
+            region_normal = normals[seed]
 
             while S:
                 p = S.pop()
 
-                # Find neighbours(p)
-                _, neighbors = tree.query(points[p], k=k + 1)
+                neighbors = all_neighbors[p]
+                candidate_normals = normals[neighbors]
 
-                # foreach candidate point c ∈ neighbours(p) do
-                for c in neighbors[1:]:  # Skip first neighbor (point itself)
-                    # Check if point fits regardless of processed state
-                    if R:
-                        region_normal = np.mean(region_normals, axis=0)
-                        region_normal = region_normal / np.linalg.norm(region_normal)
-                    else:
-                        region_normal = normals[seed]
+                # Vectorized angle calculation using Einstein Summation
+                # angles = np.arccos(np.clip(np.abs(np.einsum('ij,j->i', candidate_normals, region_normal)), -1.0, 1.0))
 
-                    # Check if point fits with region
-                    angle = np.arccos(np.clip(np.abs(np.dot(region_normal, normals[c])), -1.0, 1.0))
+                # # Vectorized angle calculation using dot product
+                angles = np.arccos(np.clip(np.dot(candidate_normals, region_normal), -1.0, 1.0))
 
-                    # Only add to region if unprocessed AND fits
-                    if angle < max_angle_rad and not processed[c]:
-                        S.add(c)  # add c to S
-                        R.add(c)  # add c to R
-                        processed[c] = True
-                        region_normals.append(normals[c])
+                fits = (angles < max_angle_rad) & ~processed[neighbors]
+                valid_neighbors = neighbors[fits]
+
+                # Update region and queue
+                S.extend(valid_neighbors)
+                R.extend(valid_neighbors)
+                processed[valid_neighbors] = True
+
+                # Update running average of region normals
+                if R:
+                    region_normal = np.mean(normals[R], axis=0)
+                    region_normal /= np.linalg.norm(region_normal)
 
             # append R to LR if it meets minimum size
             if len(R) >= min_region_size:
-                regions.append(list(R))
+                regions.append(R)
                 print(f"Found region {len(regions)} with {len(R)} points")
 
         # Convert to segment IDs format
         segment_ids = np.zeros(n, dtype=int)
         for i, region in enumerate(regions, start=1):
-            segment_ids[list(region)] = i
+            segment_ids[region] = i
 
         return segment_ids
 
@@ -170,6 +173,10 @@ def detect(lazfile, params, viz=False):
 
     # Combine results
     result = np.hstack((points, segment_ids.reshape(-1, 1)))
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Total runtime: {elapsed_time:.2f} seconds")
 
     # Visualize results
     if viz:
@@ -201,6 +208,6 @@ def detect(lazfile, params, viz=False):
                     level=rr.TextLogLevel.TRACE,
                 ),
             )
-            time.sleep(0.5)
+            # time.sleep(0.5)
 
     return result
