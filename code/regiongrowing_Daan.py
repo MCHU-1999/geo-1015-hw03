@@ -10,9 +10,6 @@ from scipy.spatial import KDTree
 
 def detect(lazfile, params, viz=False):
     """
-    !!! TO BE COMPLETED !!!
-    !!! You are free to subdivide the functionality of this function into several functions !!!
-
     Function that detects all the planes in the input LAZ file.
 
     Inputs:
@@ -26,7 +23,6 @@ def detect(lazfile, params, viz=False):
     start_time = time.time()
 
     points = np.vstack((lazfile.x, lazfile.y, lazfile.z)).transpose()
-    # print("Points shape:", points.shape)  # Debug print
 
     k = params["k"]  # Number of nearest neighbors
     max_angle = params["max_angle"]  # Angle threshold in degrees
@@ -89,17 +85,6 @@ def detect(lazfile, params, viz=False):
 
         return normals, planarity
 
-        # Process points in parallel
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=-1, backend="threading")(delayed(process_point)(i) for i in range(n))
-
-        normals, planarity = zip(*results)
-        normals = np.array(normals)
-        planarity = np.array(planarity)
-
-        return normals, planarity
-
-
     def select_seeds(planarity, min_seeds):
         # sort points by planarity descending
         sorted_indices = np.argsort(-planarity)  # Negative to sort in descending order
@@ -107,7 +92,6 @@ def detect(lazfile, params, viz=False):
         # take points with highest planarity
         n_seeds = max(min_seeds, len(planarity) // 50)  # At least min_seeds or 2% of points
         return sorted_indices[:n_seeds]
-
 
     def region_growing(points, normals, k, max_angle, tree, seed_points, min_region_size):
         max_angle_rad = np.deg2rad(max_angle)
