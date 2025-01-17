@@ -38,6 +38,10 @@ def detect(lazfile, params, viz=False):
     # Y = rho * sin(theta) * sin(phi)
     # Z = rho * cos(theta)
 
+    # MAYBE TODO:
+    # Check if point in plane during plane cleaning
+    # Add cleaning parameters to params
+
     start_time = time.time()
 
     epsilon = params["epsilon"]
@@ -93,7 +97,7 @@ def detect(lazfile, params, viz=False):
     else:
         processed_points = np.asarray(processed_points)
 
-    processed_points = plane_cleaning(processed_points)
+    # processed_points = plane_cleaning(processed_points, params)
 
     processed_points[:, -1] = np.unique(processed_points[:, -1], return_inverse=True)[1]
 
@@ -349,16 +353,15 @@ def generate_pointcloud_chunks(lazfile, chunk_size):
     return chunk_lists
 
 
-def plane_cleaning(points_with_ids):
+def plane_cleaning(points_with_ids, params):
     ids = points_with_ids[:, -1]
 
     points = points_with_ids[:, :3]
 
     tree = cKDTree(points)
 
-    max_distance = 2
-
-    minimum_points_needed = 80
+    max_distance = params["cleaning distance"]
+    minimum_points_needed = params["cleaning neighbors"]
 
     neighbors_distances, neighbors_indexes = tree.query(points, k=minimum_points_needed + 1, distance_upper_bound=max_distance, workers=5)
 
